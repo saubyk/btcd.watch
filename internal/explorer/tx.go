@@ -83,6 +83,16 @@ type PriceQuote struct {
 // PriceFunc reports the current BTC/USD price.
 type PriceFunc func() PriceQuote
 
+// Config bundles the Service's tunables.
+type Config struct {
+	Params *chaincfg.Params
+	Price  PriceFunc
+	Floors FeeFloors
+	// MaxScanTxs caps how much address history the totals scan reads
+	// before results are flagged approximate.
+	MaxScanTxs int
+}
+
 // Service derives explorer responses from a node backend.
 type Service struct {
 	backend  node.Backend
@@ -90,9 +100,11 @@ type Service struct {
 	mempool  *Mempool
 	priceUSD PriceFunc
 	floors   FeeFloors
+	maxScan  int
 
 	prevouts *lruCache[prevout]
 	headers  *lruCache[*btcjson.GetBlockHeaderVerboseResult]
+	totals   *lruCache[addressTotals]
 
 	intervalMu   sync.Mutex
 	intervalAt   time.Time
@@ -104,18 +116,28 @@ type Service struct {
 	examplesAddress   *string
 }
 
-func NewService(backend node.Backend, params *chaincfg.Params,
-	mempool *Mempool, price PriceFunc, floors FeeFloors) *Service {
-
+func NewService(backend node.Backend, cfg Config) *Service {
+	maxScan := cfg.MaxScanTxs
+	if maxScan <= 0 {
+		maxScan = 2000
+	}
 	return &Service{
 		backend:  backend,
-		params:   params,
-		mempool:  mempool,
-		priceUSD: price,
-		floors:   floors,
+		params:   cfg.Params,
+		mempool:  NewMempool(backend),
+		priceUSD: cfg.Price,
+		floors:   cfg.Floors,
+		maxScan:  maxScan,
 		prevouts: newLRU[prevout](4096),
 		headers:  newLRU[*btcjson.GetBlockHeaderVerboseResult](1024),
+		totals:   newLRU[addressTotals](256),
 	}
+}
+
+// Mempool exposes the shared snapshot (the live-update milestone
+// invalidates it on notifications).
+func (s *Service) Mempool() *Mempool {
+	return s.mempool
 }
 
 // GetTx looks up a transaction and derives the full API payload.

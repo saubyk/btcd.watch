@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"btcdwatch.com/internal/chain"
 	"btcdwatch.com/internal/explorer"
@@ -89,6 +90,42 @@ func (s *Server) handleTx(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tx)
 }
 
+const (
+	defaultActivityLimit = 25
+	maxActivityLimit     = 100
+)
+
+func (s *Server) handleAddress(w http.ResponseWriter, r *http.Request) {
+	query := chain.ClassifyQuery(r.PathValue("addr"), s.params)
+	if query.Kind != chain.QueryAddress {
+		writeError(w, http.StatusBadRequest, "invalid_address",
+			"not a valid address for this network")
+		return
+	}
+
+	offset := intParam(r, "offset", 0, 0, 1<<30)
+	limit := intParam(r, "limit", defaultActivityLimit, 1, maxActivityLimit)
+
+	summary, err := s.svc.Address(query.Address, offset, limit)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, summary)
+}
+
+func intParam(r *http.Request, name string, def, lo, hi int) int {
+	v := r.URL.Query().Get(name)
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return def
+	}
+	return min(max(n, lo), hi)
+}
+
 func (s *Server) handleFees(w http.ResponseWriter, r *http.Request) {
 	fees, err := s.svc.Fees()
 	if err != nil {
@@ -140,11 +177,14 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		})
 
 	case chain.QueryAddress:
-		// Address detail lands in the address-view milestone; the
-		// classification lets the frontend route already.
+		summary, err := s.svc.Address(query.Address, 0, defaultActivityLimit)
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"kind":  "address",
-			"query": query.Address.EncodeAddress(),
+			"kind":    "address",
+			"address": summary,
 		})
 
 	default:

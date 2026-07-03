@@ -1,4 +1,11 @@
-import type { Examples, FeeEstimate, SearchResult, Stats, Tx } from './types'
+import type {
+  AddressSummary,
+  Examples,
+  FeeEstimate,
+  SearchResult,
+  Stats,
+  Tx,
+} from './types'
 
 // ApiError carries the backend's error envelope so views can distinguish
 // a down node (503) from an unknown tx (404).
@@ -33,6 +40,10 @@ export const api = {
   search: (q: string) =>
     get<SearchResult>(`/api/search?q=${encodeURIComponent(q)}`),
   tx: (txid: string) => get<Tx>(`/api/tx/${encodeURIComponent(txid)}`),
+  address: (addr: string, offset = 0, limit = 25) =>
+    get<AddressSummary>(
+      `/api/address/${encodeURIComponent(addr)}?offset=${offset}&limit=${limit}`,
+    ),
   fees: () => get<FeeEstimate>('/api/fees'),
   stats: () => get<Stats>('/api/stats'),
   examples: () => get<Examples>('/api/examples'),

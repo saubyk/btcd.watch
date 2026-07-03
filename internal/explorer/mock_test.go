@@ -3,6 +3,7 @@ package explorer
 import (
 	"strings"
 
+	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chainhash/v2"
 )
@@ -15,9 +16,12 @@ type mockBackend struct {
 	blocks  map[string]*btcjson.GetBlockVerboseResult
 	tip     int64
 	mempool map[string]btcjson.GetRawMempoolVerboseResult
+	// history is per-address, newest first (as reverse=true returns).
+	history map[string][]*btcjson.SearchRawTransactionsResult
 
 	txFetches      map[string]int
 	mempoolFetches int
+	searchFetches  int
 }
 
 func newMockBackend() *mockBackend {
@@ -27,6 +31,7 @@ func newMockBackend() *mockBackend {
 		hashes:    make(map[int64]string),
 		blocks:    make(map[string]*btcjson.GetBlockVerboseResult),
 		mempool:   make(map[string]btcjson.GetRawMempoolVerboseResult),
+		history:   make(map[string][]*btcjson.SearchRawTransactionsResult),
 		txFetches: make(map[string]int),
 	}
 }
@@ -84,6 +89,24 @@ func (m *mockBackend) GetBlockVerbose(blockHash *chainhash.Hash) (*btcjson.GetBl
 func (m *mockBackend) GetRawMempoolVerbose() (map[string]btcjson.GetRawMempoolVerboseResult, error) {
 	m.mempoolFetches++
 	return m.mempool, nil
+}
+
+func (m *mockBackend) SearchRawTransactionsVerbose(addr address.Address, skip,
+	count int, includePrevOut, reverse bool,
+	filterAddrs []string) ([]*btcjson.SearchRawTransactionsResult, error) {
+
+	m.searchFetches++
+	list, ok := m.history[addr.EncodeAddress()]
+	if !ok {
+		return nil, &btcjson.RPCError{
+			Code:    btcjson.ErrRPCNoTxInfo,
+			Message: "No information available about address",
+		}
+	}
+	if skip >= len(list) {
+		return nil, nil
+	}
+	return list[skip:min(skip+count, len(list))], nil
 }
 
 // hexID builds a deterministic 64-hex id from a short label.

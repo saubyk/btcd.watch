@@ -61,7 +61,11 @@ export function App() {
         ) : null
       case 'address':
         return state.address ? (
-          <AddressView address={state.address} onHome={goHome} />
+          <AddressView
+            summary={state.address}
+            dispatch={dispatch}
+            onHome={goHome}
+          />
         ) : null
       default:
         return <Landing data={data} onSearch={search} />

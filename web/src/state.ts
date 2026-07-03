@@ -1,4 +1,4 @@
-import type { SearchResult, Tx } from './api/types'
+import type { AddressSummary, SearchResult, Tx } from './api/types'
 import { appConfig } from './appConfig'
 
 export type View =
@@ -14,7 +14,7 @@ export interface AppState {
   view: View
   query: string
   tx: Tx | null
-  address: string | null
+  address: AddressSummary | null
   detail: 'beginner' | 'detailed'
   justConfirmed: boolean
   watching: boolean
@@ -37,6 +37,7 @@ export type Action =
   | { type: 'search-result'; result: SearchResult }
   | { type: 'search-error'; message: string }
   | { type: 'tx-updated'; tx: Tx }
+  | { type: 'address-more'; page: AddressSummary }
   | { type: 'set-detail'; detail: 'beginner' | 'detailed' }
   | { type: 'watch-start' }
   | { type: 'watch-stop' }
@@ -64,7 +65,7 @@ export function reducer(state: AppState, action: Action): AppState {
             tx: r.tx,
           }
         case 'address':
-          return { ...state, view: 'address', address: r.query }
+          return { ...state, view: 'address', address: r.address }
         default:
           return { ...state, view: 'notfound' }
       }
@@ -86,6 +87,18 @@ export function reducer(state: AppState, action: Action): AppState {
         }
       }
       return { ...state, tx: action.tx }
+    }
+
+    // Pagination: append the next activity page, adopt its cursor.
+    case 'address-more': {
+      if (!state.address) return state
+      return {
+        ...state,
+        address: {
+          ...action.page,
+          activity: [...state.address.activity, ...action.page.activity],
+        },
+      }
     }
 
     case 'set-detail':

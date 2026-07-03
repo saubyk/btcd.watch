@@ -10,6 +10,7 @@ import (
 	"os"
 	"sync/atomic"
 
+	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chainhash/v2"
 	"github.com/btcsuite/btcd/rpcclient"
@@ -28,6 +29,9 @@ type Backend interface {
 	GetBlockCount() (int64, error)
 	GetBlockVerbose(blockHash *chainhash.Hash) (*btcjson.GetBlockVerboseResult, error)
 	GetRawMempoolVerbose() (map[string]btcjson.GetRawMempoolVerboseResult, error)
+	SearchRawTransactionsVerbose(addr address.Address, skip, count int,
+		includePrevOut, reverse bool,
+		filterAddrs []string) ([]*btcjson.SearchRawTransactionsResult, error)
 }
 
 // Config holds the btcd connection settings.
@@ -151,4 +155,15 @@ func (c *Client) GetRawMempoolVerbose() (map[string]btcjson.GetRawMempoolVerbose
 		return nil, err
 	}
 	return c.rpc.GetRawMempoolVerbose()
+}
+
+func (c *Client) SearchRawTransactionsVerbose(addr address.Address, skip,
+	count int, includePrevOut, reverse bool,
+	filterAddrs []string) ([]*btcjson.SearchRawTransactionsResult, error) {
+
+	if err := c.available(); err != nil {
+		return nil, err
+	}
+	return c.rpc.SearchRawTransactionsVerbose(addr, skip, count,
+		includePrevOut, reverse, filterAddrs)
 }

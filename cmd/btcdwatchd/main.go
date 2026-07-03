@@ -74,14 +74,16 @@ func run() error {
 		}
 	}
 
-	floors := explorer.FeeFloors{
-		Slow:     cfg.Fees.FloorSlow,
-		Standard: cfg.Fees.FloorStandard,
-		Urgent:   cfg.Fees.FloorUrgent,
-	}
-
-	mempool := explorer.NewMempool(backend)
-	svc := explorer.NewService(backend, params, mempool, quote, floors)
+	svc := explorer.NewService(backend, explorer.Config{
+		Params: params,
+		Price:  quote,
+		Floors: explorer.FeeFloors{
+			Slow:     cfg.Fees.FloorSlow,
+			Standard: cfg.Fees.FloorStandard,
+			Urgent:   cfg.Fees.FloorUrgent,
+		},
+		MaxScanTxs: cfg.Address.MaxScanTxs,
+	})
 
 	server := &http.Server{
 		Addr:              cfg.Server.Listen,

@@ -32,9 +32,32 @@ export interface Tx {
   pending: TxPending | null
 }
 
+export interface AddressActivity {
+  txid: string
+  direction: 'received' | 'sent' | 'self'
+  amountSats: number
+  status: 'pending' | 'confirmed'
+  confirmations: number
+  time: number
+}
+
+export interface AddressSummary {
+  address: string
+  balanceSats: number
+  receivedSats: number
+  sentSats: number
+  fiatUsd: number | null
+  txCount: number
+  approximate: boolean
+  activity: AddressActivity[]
+  offset: number
+  limit: number
+  hasMore: boolean
+}
+
 export type SearchResult =
   | { kind: 'tx'; tx: Tx }
-  | { kind: 'address'; query: string }
+  | { kind: 'address'; address: AddressSummary }
   | { kind: 'notfound'; query: string }
   | { kind: 'invalid'; query: string }
 
