@@ -8,12 +8,16 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/btcjson"
+	"github.com/btcsuite/btcd/btcutil/v2"
 	"github.com/btcsuite/btcd/chainhash/v2"
 	"github.com/btcsuite/btcd/rpcclient"
+	"github.com/btcsuite/btcd/wire/v2"
 )
 
 // ErrUnavailable is returned by all Backend methods while the btcd node is
@@ -34,6 +38,22 @@ type Backend interface {
 		filterAddrs []string) ([]*btcjson.SearchRawTransactionsResult, error)
 }
 
+// Handlers are the chain events consumers can subscribe to. Callbacks run
+// on the rpcclient notification goroutine — they must return quickly and
+// never call back into the node synchronously.
+type Handlers struct {
+	// OnBlock fires once per newly connected block (deduplicated across
+	// btcd's two block-notification variants).
+	OnBlock func(height int32)
+
+	// OnTxAccepted fires when a transaction enters btcd's mempool.
+	OnTxAccepted func()
+
+	// OnConnect fires after every (re)connect, once notifications have
+	// been registered.
+	OnConnect func()
+}
+
 // Config holds the btcd connection settings.
 type Config struct {
 	Host     string
@@ -44,20 +64,29 @@ type Config struct {
 
 // Client implements Backend over a websocket rpcclient connection.
 //
-// Websocket mode (rather than HTTP POST) is required because later
-// milestones rely on btcd push notifications. A request issued while the
-// connection is down would block inside rpcclient until reconnect, so every
-// method fails fast with ErrUnavailable when the client has not yet
-// connected or is currently disconnected (auto-reconnect re-establishes the
-// session and calls flow again).
+// Websocket mode (rather than HTTP POST) is required for btcd push
+// notifications. A request issued while the connection is down would block
+// inside rpcclient until reconnect, so every method fails fast with
+// ErrUnavailable when the client has not yet connected or is currently
+// disconnected (auto-reconnect re-establishes the session, re-registers
+// notifications, and calls flow again).
 type Client struct {
 	rpc   *rpcclient.Client
 	ready atomic.Bool
+
+	mu       sync.RWMutex
+	handlers Handlers
+
+	// lastBlockHash dedupes block events: btcd may deliver both the
+	// filtered and legacy block-connected callbacks for the same block
+	// depending on version and registration mode.
+	lastBlockMu   sync.Mutex
+	lastBlockHash string
 }
 
-// New creates the client and starts connecting in the background. A btcd
-// node that is down at startup does not fail the server; Backend calls
-// return ErrUnavailable until the connection is established.
+// New creates the client without connecting. Call Start to set event
+// handlers and begin connecting in the background; Backend calls return
+// ErrUnavailable until the connection is established.
 func New(cfg Config) (*Client, error) {
 	var certs []byte
 	if cfg.CertPath != "" {
@@ -77,29 +106,93 @@ func New(cfg Config) (*Client, error) {
 		DisableConnectOnNew: true,
 	}
 
-	// Notification handlers are wired in the live-update milestone.
-	rpc, err := rpcclient.New(connCfg, nil)
+	c := &Client{}
+
+	ntfns := &rpcclient.NotificationHandlers{
+		OnClientConnected: c.onClientConnected,
+		OnFilteredBlockConnected: func(height int32,
+			header *wire.BlockHeader, _ []*btcutil.Tx) {
+
+			c.onBlock(height, header.BlockHash().String())
+		},
+		OnBlockConnected: func(hash *chainhash.Hash, height int32,
+			_ time.Time) {
+
+			c.onBlock(height, hash.String())
+		},
+		OnTxAcceptedVerbose: func(_ *btcjson.TxRawResult) {
+			if h := c.getHandlers().OnTxAccepted; h != nil {
+				h()
+			}
+		},
+	}
+
+	rpc, err := rpcclient.New(connCfg, ntfns)
 	if err != nil {
 		return nil, fmt.Errorf("create rpc client: %w", err)
 	}
-
-	c := &Client{rpc: rpc}
-	go c.connect(cfg.Host)
+	c.rpc = rpc
 	return c, nil
 }
 
-// connect blocks until the websocket session is established. rpcclient
-// retries internally with backoff when tries is 0.
-func (c *Client) connect(host string) {
-	if err := c.rpc.Connect(0); err != nil &&
-		!errors.Is(err, rpcclient.ErrClientAlreadyConnected) {
+// Start registers the event handlers and begins connecting. rpcclient
+// retries internally with backoff when tries is 0, and auto-reconnects
+// (re-registering notifications) after any later drop.
+func (c *Client) Start(handlers Handlers) {
+	c.mu.Lock()
+	c.handlers = handlers
+	c.mu.Unlock()
 
-		slog.Error("btcd connection failed permanently",
-			"host", host, "err", err)
+	go func() {
+		if err := c.rpc.Connect(0); err != nil &&
+			!errors.Is(err, rpcclient.ErrClientAlreadyConnected) {
+
+			slog.Error("btcd connection failed permanently", "err", err)
+		}
+	}()
+}
+
+func (c *Client) getHandlers() Handlers {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.handlers
+}
+
+// onClientConnected runs on every (re)connect. Notification registrations
+// do not exist on a fresh session, so they are (re)issued here; the RPC
+// calls must leave the notification goroutine.
+func (c *Client) onClientConnected() {
+	go func() {
+		if err := c.rpc.NotifyBlocks(); err != nil {
+			slog.Error("notifyblocks registration failed", "err", err)
+		}
+		if err := c.rpc.NotifyNewTransactions(true); err != nil {
+			slog.Error("notifynewtransactions registration failed", "err", err)
+		}
+		c.ready.Store(true)
+		slog.Info("connected to btcd, notifications registered")
+
+		if h := c.getHandlers().OnConnect; h != nil {
+			h()
+		}
+	}()
+}
+
+func (c *Client) onBlock(height int32, hash string) {
+	c.lastBlockMu.Lock()
+	dup := hash == c.lastBlockHash
+	if !dup {
+		c.lastBlockHash = hash
+	}
+	c.lastBlockMu.Unlock()
+	if dup {
 		return
 	}
-	c.ready.Store(true)
-	slog.Info("connected to btcd", "host", host)
+
+	slog.Debug("block connected", "height", height, "hash", hash)
+	if h := c.getHandlers().OnBlock; h != nil {
+		h(height)
+	}
 }
 
 // Shutdown tears down the RPC connection.

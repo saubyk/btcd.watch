@@ -41,6 +41,13 @@ func (c *lruCache[V]) get(key string) (V, bool) {
 	return el.Value.(*lruEntry[V]).val, true
 }
 
+func (c *lruCache[V]) clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.order.Init()
+	c.items = make(map[string]*list.Element, c.cap)
+}
+
 func (c *lruCache[V]) put(key string, val V) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

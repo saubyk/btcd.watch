@@ -20,7 +20,7 @@ export function PendingTx({
   dispatch: Dispatch<Action>
   onHome: () => void
 }) {
-  const secsLeft = useWatchTx(tx.txid, watching, dispatch)
+  const watch = useWatchTx(tx.txid, watching, dispatch)
   const rate = tx.feeRateSatPerVb ?? 0
   const urgent = fees?.tiers.find((t) => t.id === 'urgent')
 
@@ -82,8 +82,9 @@ export function PendingTx({
                   Watching for confirmation…
                 </div>
                 <div className="bp-watch-sub">
-                  Auto-checking your btcd node — we'll alert you the moment
-                  it lands. Next check in {secsLeft}s.
+                  {watch.live
+                    ? "Live — connected to your btcd node; this page flips the moment it lands in a block."
+                    : `Auto-checking your btcd node — we'll alert you the moment it lands. Next check in ${watch.secsLeft}s.`}
                 </div>
               </div>
               <button

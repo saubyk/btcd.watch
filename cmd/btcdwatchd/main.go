@@ -50,6 +50,8 @@ func run() error {
 		return err
 	}
 
+	// Created first (the service needs it), but connection starts below,
+	// once the notification consumers exist.
 	backend, err := node.New(node.Config{
 		Host:     cfg.Node.RPCHost,
 		User:     cfg.Node.RPCUser,
@@ -85,9 +87,22 @@ func run() error {
 		MaxScanTxs: cfg.Address.MaxScanTxs,
 	})
 
+	hub := api.NewHub(svc.Stats, svc.GetTx)
+	hubCtx, stopHub := context.WithCancel(context.Background())
+	defer stopHub()
+	go hub.Run(hubCtx)
+
+	backend.Start(node.Handlers{
+		OnBlock: func(height int32) {
+			svc.OnBlock()
+			hub.NotifyBlock()
+		},
+		OnTxAccepted: svc.Mempool().MarkDirty,
+	})
+
 	server := &http.Server{
 		Addr:              cfg.Server.Listen,
-		Handler:           api.New(svc, backend, params, cfg.Node.Network),
+		Handler:           api.New(svc, backend, params, cfg.Node.Network, hub),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

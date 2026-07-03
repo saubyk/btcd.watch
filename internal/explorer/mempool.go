@@ -13,6 +13,11 @@ import (
 // a read triggers a refresh.
 const snapshotMaxAge = 5 * time.Second
 
+// snapshotMinAge throttles dirty-flag refreshes: a busy txgen marks the
+// snapshot dirty constantly, and refetching the whole mempool on every
+// read would defeat the point of sharing it.
+const snapshotMinAge = time.Second
+
 // MempoolEntry is one mempool transaction in the shared snapshot.
 type MempoolEntry struct {
 	FeeSats   int64
@@ -32,6 +37,7 @@ type Mempool struct {
 
 	mu      sync.Mutex
 	fetched time.Time
+	dirty   bool
 	entries map[string]MempoolEntry
 }
 
@@ -46,7 +52,10 @@ func (m *Mempool) Snapshot() (map[string]MempoolEntry, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.entries != nil && time.Since(m.fetched) < snapshotMaxAge {
+	age := time.Since(m.fetched)
+	fresh := m.entries != nil && age < snapshotMaxAge &&
+		!(m.dirty && age >= snapshotMinAge)
+	if fresh {
 		return m.entries, nil
 	}
 
@@ -54,6 +63,7 @@ func (m *Mempool) Snapshot() (map[string]MempoolEntry, error) {
 	if err != nil {
 		return nil, err
 	}
+	m.dirty = false
 
 	entries := make(map[string]MempoolEntry, len(raw))
 	for txid, e := range raw {
@@ -82,10 +92,18 @@ func (m *Mempool) Snapshot() (map[string]MempoolEntry, error) {
 	return m.entries, nil
 }
 
-// Invalidate forces the next Snapshot call to refresh. Wired to block and
-// mempool notifications in the live-update milestone.
+// Invalidate forces the next Snapshot call to refresh; used when a block
+// connects and the mempool contents change wholesale.
 func (m *Mempool) Invalidate() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.fetched = time.Time{}
+}
+
+// MarkDirty requests a refresh on the next read (throttled to
+// snapshotMinAge); wired to btcd's tx-accepted notifications.
+func (m *Mempool) MarkDirty() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.dirty = true
 }
