@@ -18,6 +18,7 @@ import (
 	"btcdwatch.com/internal/config"
 	"btcdwatch.com/internal/explorer"
 	"btcdwatch.com/internal/node"
+	"btcdwatch.com/internal/price"
 )
 
 func main() {
@@ -60,16 +61,27 @@ func run() error {
 	}
 	defer backend.Shutdown()
 
-	// Static price until the live price service milestone.
-	price := func() (float64, bool) {
-		if cfg.Price.StaticUSD > 0 {
-			return cfg.Price.StaticUSD, true
+	prices := price.New(cfg.Price.Source, cfg.Price.StaticUSD,
+		cfg.Price.RefreshSeconds)
+	defer prices.Close()
+	quote := func() explorer.PriceQuote {
+		q := prices.Quote()
+		return explorer.PriceQuote{
+			USD:       q.USD,
+			Source:    q.Source,
+			UpdatedAt: q.UpdatedAt.Unix(),
+			OK:        q.OK,
 		}
-		return 0, false
+	}
+
+	floors := explorer.FeeFloors{
+		Slow:     cfg.Fees.FloorSlow,
+		Standard: cfg.Fees.FloorStandard,
+		Urgent:   cfg.Fees.FloorUrgent,
 	}
 
 	mempool := explorer.NewMempool(backend)
-	svc := explorer.NewService(backend, params, mempool, price)
+	svc := explorer.NewService(backend, params, mempool, quote, floors)
 
 	server := &http.Server{
 		Addr:              cfg.Server.Listen,

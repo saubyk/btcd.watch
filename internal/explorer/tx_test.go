@@ -15,8 +15,11 @@ const (
 )
 
 func newTestService(m *mockBackend) *Service {
-	price := func() (float64, bool) { return 100_000, true }
-	return NewService(m, &chaincfg.RegressionNetParams, NewMempool(m), price)
+	price := func() PriceQuote {
+		return PriceQuote{USD: 100_000, Source: "static", OK: true}
+	}
+	floors := FeeFloors{Slow: 1, Standard: 2, Urgent: 5}
+	return NewService(m, &chaincfg.RegressionNetParams, NewMempool(m), price, floors)
 }
 
 // installParent registers a parent tx whose vouts fund the tx under test.

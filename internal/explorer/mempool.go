@@ -15,9 +15,10 @@ const snapshotMaxAge = 5 * time.Second
 
 // MempoolEntry is one mempool transaction in the shared snapshot.
 type MempoolEntry struct {
-	FeeSats int64
-	VSize   int64
-	Time    int64
+	FeeSats   int64
+	VSize     int64
+	SizeBytes int64
+	Time      int64
 	// FeeRate is sat/vB.
 	FeeRate float64
 }
@@ -65,9 +66,10 @@ func (m *Mempool) Snapshot() (map[string]MempoolEntry, error) {
 			vsize = int64(e.Size)
 		}
 		entry := MempoolEntry{
-			FeeSats: int64(fee),
-			VSize:   vsize,
-			Time:    e.Time,
+			FeeSats:   int64(fee),
+			VSize:     vsize,
+			SizeBytes: int64(e.Size),
+			Time:      e.Time,
 		}
 		if vsize > 0 {
 			entry.FeeRate = float64(entry.FeeSats) / float64(vsize)

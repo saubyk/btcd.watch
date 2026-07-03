@@ -12,6 +12,7 @@ type mockBackend struct {
 	txs     map[string]*btcjson.TxRawResult
 	headers map[string]*btcjson.GetBlockHeaderVerboseResult
 	hashes  map[int64]string
+	blocks  map[string]*btcjson.GetBlockVerboseResult
 	tip     int64
 	mempool map[string]btcjson.GetRawMempoolVerboseResult
 
@@ -24,6 +25,7 @@ func newMockBackend() *mockBackend {
 		txs:       make(map[string]*btcjson.TxRawResult),
 		headers:   make(map[string]*btcjson.GetBlockHeaderVerboseResult),
 		hashes:    make(map[int64]string),
+		blocks:    make(map[string]*btcjson.GetBlockVerboseResult),
 		mempool:   make(map[string]btcjson.GetRawMempoolVerboseResult),
 		txFetches: make(map[string]int),
 	}
@@ -66,6 +68,17 @@ func (m *mockBackend) GetBlockHash(height int64) (*chainhash.Hash, error) {
 
 func (m *mockBackend) GetBlockCount() (int64, error) {
 	return m.tip, nil
+}
+
+func (m *mockBackend) GetBlockVerbose(blockHash *chainhash.Hash) (*btcjson.GetBlockVerboseResult, error) {
+	b, ok := m.blocks[blockHash.String()]
+	if !ok {
+		return nil, &btcjson.RPCError{
+			Code:    btcjson.ErrRPCBlockNotFound,
+			Message: "Block not found",
+		}
+	}
+	return b, nil
 }
 
 func (m *mockBackend) GetRawMempoolVerbose() (map[string]btcjson.GetRawMempoolVerboseResult, error) {

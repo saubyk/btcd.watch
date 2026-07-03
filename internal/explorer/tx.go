@@ -71,9 +71,17 @@ type prevout struct {
 	addrs     []string
 }
 
-// PriceFunc reports the current BTC/USD price; ok is false when no price
-// is available (fiat fields are then null).
-type PriceFunc func() (usd float64, ok bool)
+// PriceQuote is the current BTC/USD price as seen by the explorer. OK is
+// false when no price is available (fiat fields are then null).
+type PriceQuote struct {
+	USD       float64
+	Source    string
+	UpdatedAt int64
+	OK        bool
+}
+
+// PriceFunc reports the current BTC/USD price.
+type PriceFunc func() PriceQuote
 
 // Service derives explorer responses from a node backend.
 type Service struct {
@@ -81,6 +89,7 @@ type Service struct {
 	params   *chaincfg.Params
 	mempool  *Mempool
 	priceUSD PriceFunc
+	floors   FeeFloors
 
 	prevouts *lruCache[prevout]
 	headers  *lruCache[*btcjson.GetBlockHeaderVerboseResult]
@@ -88,16 +97,22 @@ type Service struct {
 	intervalMu   sync.Mutex
 	intervalAt   time.Time
 	intervalMean time.Duration
+
+	examplesMu        sync.Mutex
+	examplesTip       int64
+	examplesConfirmed *string
+	examplesAddress   *string
 }
 
 func NewService(backend node.Backend, params *chaincfg.Params,
-	mempool *Mempool, price PriceFunc) *Service {
+	mempool *Mempool, price PriceFunc, floors FeeFloors) *Service {
 
 	return &Service{
 		backend:  backend,
 		params:   params,
 		mempool:  mempool,
 		priceUSD: price,
+		floors:   floors,
 		prevouts: newLRU[prevout](4096),
 		headers:  newLRU[*btcjson.GetBlockHeaderVerboseResult](1024),
 	}
@@ -152,8 +167,8 @@ func (s *Service) GetTx(txid string) (*Tx, error) {
 
 	s.deriveOutputs(tx, raw.Vout, isCoinbase, sumInSats)
 
-	if usd, ok := s.priceUSD(); ok {
-		fiat := btcutil.Amount(tx.AmountSats).ToBTC() * usd
+	if q := s.priceUSD(); q.OK {
+		fiat := btcutil.Amount(tx.AmountSats).ToBTC() * q.USD
 		tx.FiatUSD = &fiat
 	}
 

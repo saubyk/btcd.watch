@@ -26,6 +26,7 @@ type Backend interface {
 	GetBlockHeaderVerbose(blockHash *chainhash.Hash) (*btcjson.GetBlockHeaderVerboseResult, error)
 	GetBlockHash(height int64) (*chainhash.Hash, error)
 	GetBlockCount() (int64, error)
+	GetBlockVerbose(blockHash *chainhash.Hash) (*btcjson.GetBlockVerboseResult, error)
 	GetRawMempoolVerbose() (map[string]btcjson.GetRawMempoolVerboseResult, error)
 }
 
@@ -136,6 +137,13 @@ func (c *Client) GetBlockCount() (int64, error) {
 		return 0, err
 	}
 	return c.rpc.GetBlockCount()
+}
+
+func (c *Client) GetBlockVerbose(blockHash *chainhash.Hash) (*btcjson.GetBlockVerboseResult, error) {
+	if err := c.available(); err != nil {
+		return nil, err
+	}
+	return c.rpc.GetBlockVerbose(blockHash)
 }
 
 func (c *Client) GetRawMempoolVerbose() (map[string]btcjson.GetRawMempoolVerboseResult, error) {

@@ -89,6 +89,33 @@ func (s *Server) handleTx(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tx)
 }
 
+func (s *Server) handleFees(w http.ResponseWriter, r *http.Request) {
+	fees, err := s.svc.Fees()
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, fees)
+}
+
+func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := s.svc.Stats()
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
+}
+
+func (s *Server) handleExamples(w http.ResponseWriter, r *http.Request) {
+	examples, err := s.svc.Examples()
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, examples)
+}
+
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	query := chain.ClassifyQuery(q, s.params)

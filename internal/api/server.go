@@ -33,5 +33,8 @@ func New(svc *explorer.Service, backend node.Backend,
 	mux.HandleFunc("GET /api/healthz", s.handleHealthz)
 	mux.HandleFunc("GET /api/tx/{txid}", s.handleTx)
 	mux.HandleFunc("GET /api/search", s.handleSearch)
+	mux.HandleFunc("GET /api/fees", s.handleFees)
+	mux.HandleFunc("GET /api/stats", s.handleStats)
+	mux.HandleFunc("GET /api/examples", s.handleExamples)
 	return mux
 }

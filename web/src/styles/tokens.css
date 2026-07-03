@@ -1,0 +1,69 @@
+/* Design tokens from the btcdwatch handoff README — colors, type, radii,
+   shadows. Values are final; do not tweak without a design change. */
+:root {
+  /* Surfaces */
+  --bp-bg: #fcf6ee;
+  --bp-surface: #fff;
+  --bp-tile: #f7f1e8;
+  --bp-inset: #fcf6ee;
+  --bp-dark: #211b14;
+
+  /* Text */
+  --bp-text: #211b14;
+  --bp-text-secondary: #766857;
+  --bp-text-secondary-2: #6b5d4b;
+  --bp-text-body: #5c4f3e;
+  --bp-text-label: #8a7c68;
+  --bp-text-muted: #9a8b78;
+  --bp-text-muted-2: #a2937f;
+  --bp-text-faint: #b6a790;
+  --bp-text-faint-2: #c9b79e;
+  --bp-dark-muted: #7e7160;
+
+  /* Brand */
+  --bp-orange: #f7931a;
+  --bp-orange-deep: #e07d05;
+  --bp-orange-text: #b5790a;
+  --bp-orange-tint: #fcebd4;
+
+  /* Success */
+  --bp-green: #22a45d;
+  --bp-green-deep: #147a41;
+  --bp-green-text: #3e8c5f;
+  --bp-green-tint: #eaf7ef;
+  --bp-green-tint-2: #e3f4ea;
+  --bp-green-border: #bfe6cd;
+
+  /* Pending / amber */
+  --bp-amber: #e0a018;
+  --bp-amber-deep: #a06e08;
+  --bp-amber-tint: #fcf2da;
+  --bp-amber-tint-2: #fff8ec;
+  --bp-amber-border: #f1d89b;
+  --bp-amber-border-2: #f4e2b6;
+
+  /* Error / sent */
+  --bp-red: #c5503f;
+  --bp-red-deep: #a23e2f;
+  --bp-red-text: #b0584a;
+  --bp-red-tint: #fbf0ec;
+
+  /* Borders / dividers */
+  --bp-border: #ecdfcc;
+  --bp-border-2: #efe3d2;
+  --bp-border-3: #f0e4d3;
+  --bp-divider: #f2eadd;
+  --bp-divider-2: #f6efe3;
+  --bp-divider-3: #f0e6d8;
+
+  /* Type */
+  --bp-font: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --bp-mono: 'IBM Plex Mono', monospace;
+
+  /* Shadows */
+  --bp-shadow-btn: 0 4px 14px rgba(247, 147, 26, 0.32);
+  --bp-shadow-card: 0 8px 30px rgba(120, 90, 40, 0.07);
+  --bp-shadow-input: 0 4px 18px rgba(120, 90, 40, 0.06);
+  --bp-shadow-recommended: 0 10px 30px rgba(247, 147, 26, 0.14);
+  --bp-shadow-toast: 0 8px 24px rgba(0, 0, 0, 0.22);
+}
