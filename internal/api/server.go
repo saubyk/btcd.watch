@@ -19,9 +19,11 @@ type Server struct {
 	hub     *Hub
 }
 
-// New builds the HTTP handler for all /api routes.
+// New builds the HTTP handler: all /api routes plus the SPA on every
+// other path.
 func New(svc *explorer.Service, backend node.Backend,
-	params *chaincfg.Params, network string, hub *Hub) http.Handler {
+	params *chaincfg.Params, network string, hub *Hub,
+	static http.Handler) http.Handler {
 
 	s := &Server{
 		svc:     svc,
@@ -40,5 +42,10 @@ func New(svc *explorer.Service, backend node.Backend,
 	mux.HandleFunc("GET /api/stats", s.handleStats)
 	mux.HandleFunc("GET /api/examples", s.handleExamples)
 	mux.HandleFunc("GET /api/ws", s.handleWS)
+	if static != nil {
+		// "/" is the least specific pattern, so every /api route above
+		// still wins.
+		mux.Handle("/", static)
+	}
 	return mux
 }

@@ -1,4 +1,4 @@
-import { useCallback, useReducer } from 'react'
+import { useCallback, useEffect, useReducer } from 'react'
 
 import { Footer } from './components/Footer'
 import { Header } from './components/Header'
@@ -20,7 +20,16 @@ export function App() {
 
   const goHome = useCallback(() => {
     dispatch({ type: 'reset' })
+    history.replaceState(null, '', location.pathname)
     window.scrollTo({ top: 0 })
+  }, [])
+
+  // Deep links: /?q=<txid|address> searches on cold load.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get('q')
+    if (q) void search(q)
+    // search is stable (useCallback over dispatch).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const network = data.stats?.network ?? null

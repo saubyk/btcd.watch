@@ -3,6 +3,7 @@ config.yaml
 
 bin/
 web/node_modules/
-web/dist/
+web/dist/*
+!web/dist/.keep
 web/tsconfig.tsbuildinfo
 .DS_Store

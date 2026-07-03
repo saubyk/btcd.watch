@@ -22,6 +22,8 @@ export function useSearch(dispatch: Dispatch<Action>) {
 
       const mySeq = ++seq.current
       dispatch({ type: 'search-start', query })
+      // Keep the URL shareable; the SPA fallback renders /?q=… cold.
+      history.replaceState(null, '', `?q=${encodeURIComponent(query)}`)
       window.scrollTo({ top: 0 })
 
       const started = Date.now()

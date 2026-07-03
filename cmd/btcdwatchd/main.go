@@ -31,6 +31,8 @@ func main() {
 func run() error {
 	configPath := flag.String("config", "",
 		"path to YAML config (default: config.yaml if present)")
+	staticDir := flag.String("static-dir", "",
+		"serve the SPA from this directory instead of the embedded build")
 	flag.Parse()
 
 	path := *configPath
@@ -100,9 +102,14 @@ func run() error {
 		OnTxAccepted: svc.Mempool().MarkDirty,
 	})
 
+	static, err := api.StaticHandler(*staticDir)
+	if err != nil {
+		return err
+	}
+
 	server := &http.Server{
 		Addr:              cfg.Server.Listen,
-		Handler:           api.New(svc, backend, params, cfg.Node.Network, hub),
+		Handler:           api.New(svc, backend, params, cfg.Node.Network, hub, static),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
