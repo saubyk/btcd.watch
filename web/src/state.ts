@@ -37,6 +37,7 @@ export type Action =
   | { type: 'search-result'; result: SearchResult }
   | { type: 'search-error'; message: string }
   | { type: 'tx-updated'; tx: Tx }
+  | { type: 'tx-queue'; txsAhead: number; etaSeconds: number }
   | { type: 'address-more'; page: AddressSummary }
   | { type: 'set-detail'; detail: 'beginner' | 'detailed' }
   | { type: 'watch-start' }
@@ -87,6 +88,22 @@ export function reducer(state: AppState, action: Action): AppState {
         }
       }
       return { ...state, tx: action.tx }
+    }
+
+    // Live queue-position refresh for the pending view.
+    case 'tx-queue': {
+      if (!state.tx?.pending) return state
+      return {
+        ...state,
+        tx: {
+          ...state.tx,
+          pending: {
+            ...state.tx.pending,
+            txsAhead: action.txsAhead,
+            etaSeconds: action.etaSeconds,
+          },
+        },
+      }
     }
 
     // Pagination: append the next activity page, adopt its cursor.

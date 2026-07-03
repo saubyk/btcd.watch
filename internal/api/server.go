@@ -16,17 +16,19 @@ type Server struct {
 	backend node.Backend
 	params  *chaincfg.Params
 	network string
+	hub     *Hub
 }
 
 // New builds the HTTP handler for all /api routes.
 func New(svc *explorer.Service, backend node.Backend,
-	params *chaincfg.Params, network string) http.Handler {
+	params *chaincfg.Params, network string, hub *Hub) http.Handler {
 
 	s := &Server{
 		svc:     svc,
 		backend: backend,
 		params:  params,
 		network: network,
+		hub:     hub,
 	}
 
 	mux := http.NewServeMux()
@@ -37,5 +39,6 @@ func New(svc *explorer.Service, backend node.Backend,
 	mux.HandleFunc("GET /api/fees", s.handleFees)
 	mux.HandleFunc("GET /api/stats", s.handleStats)
 	mux.HandleFunc("GET /api/examples", s.handleExamples)
+	mux.HandleFunc("GET /api/ws", s.handleWS)
 	return mux
 }

@@ -134,10 +134,22 @@ func NewService(backend node.Backend, cfg Config) *Service {
 	}
 }
 
-// Mempool exposes the shared snapshot (the live-update milestone
-// invalidates it on notifications).
+// Mempool exposes the shared snapshot so notifications can mark it dirty.
 func (s *Service) Mempool() *Mempool {
 	return s.mempool
+}
+
+// OnBlock invalidates everything a new block outdates: the mempool
+// snapshot, address totals, and the measured block interval. (Block
+// headers and prevouts are immutable and stay cached; the examples cache
+// is keyed by tip height and refreshes itself.)
+func (s *Service) OnBlock() {
+	s.mempool.Invalidate()
+	s.totals.clear()
+
+	s.intervalMu.Lock()
+	s.intervalAt = time.Time{}
+	s.intervalMu.Unlock()
 }
 
 // GetTx looks up a transaction and derives the full API payload.
