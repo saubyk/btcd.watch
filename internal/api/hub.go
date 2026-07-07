@@ -14,11 +14,19 @@ import (
 // between blocks).
 const tickInterval = 10 * time.Second
 
-// StatsFunc / TxFunc decouple the hub from the explorer service so tests
-// can inject fakes.
+// mempoolPushInterval throttles live-mempool pushes: tx-accepted
+// notifications mark the hub dirty, and at most one mempool push per
+// interval goes out (plus an immediate one per block, for the bar
+// contraction).
+const mempoolPushInterval = 2 * time.Second
+
+// StatsFunc / TxFunc / MempoolFunc / BlockFlashFunc decouple the hub from
+// the explorer service so tests can inject fakes.
 type (
-	StatsFunc func() (*explorer.Stats, error)
-	TxFunc    func(txid string) (*explorer.Tx, error)
+	StatsFunc      func() (*explorer.Stats, error)
+	TxFunc         func(txid string) (*explorer.Tx, error)
+	MempoolFunc    func() (*explorer.MempoolUpdate, error)
+	BlockFlashFunc func(hash string) (*explorer.BlockFlash, error)
 )
 
 // TxUpdate is the compact per-transaction push payload.
@@ -42,37 +50,62 @@ type wsCommand struct {
 // work happens in short-lived goroutines that only touch clients through
 // their buffered send channels.
 type Hub struct {
-	stats StatsFunc
-	tx    TxFunc
+	stats      StatsFunc
+	tx         TxFunc
+	mempool    MempoolFunc
+	blockFlash BlockFlashFunc
 
 	register   chan *wsClient
 	unregister chan *wsClient
 	commands   chan wsCommand
-	blocks     chan struct{}
+	blocks     chan string
+	mempoolCh  chan struct{}
+
+	// mpInterval is the mempool push throttle (mempoolPushInterval;
+	// shortened by tests).
+	mpInterval time.Duration
 
 	// Loop-owned state — never touched outside run().
-	clients  map[*wsClient]bool
-	watchers map[string]map[*wsClient]bool
+	clients      map[*wsClient]bool
+	watchers     map[string]map[*wsClient]bool
+	mempoolDirty bool
 }
 
-func NewHub(stats StatsFunc, tx TxFunc) *Hub {
+func NewHub(stats StatsFunc, tx TxFunc, mempool MempoolFunc,
+	blockFlash BlockFlashFunc) *Hub {
+
 	return &Hub{
 		stats:      stats,
 		tx:         tx,
+		mempool:    mempool,
+		blockFlash: blockFlash,
 		register:   make(chan *wsClient),
 		unregister: make(chan *wsClient, 8),
 		commands:   make(chan wsCommand),
-		blocks:     make(chan struct{}, 1),
+		blocks:     make(chan string, 1),
+		mempoolCh:  make(chan struct{}, 1),
+		mpInterval: mempoolPushInterval,
 		clients:    make(map[*wsClient]bool),
 		watchers:   make(map[string]map[*wsClient]bool),
 	}
 }
 
-// NotifyBlock wakes the hub after a new block; multiple rapid blocks
-// coalesce into one wake-up.
-func (h *Hub) NotifyBlock() {
+// NotifyBlock wakes the hub after a new block; with rapid blocks the
+// latest wins. There is a single notifier (the rpcclient callback), so
+// drain-then-send never races.
+func (h *Hub) NotifyBlock(hash string) {
 	select {
-	case h.blocks <- struct{}{}:
+	case <-h.blocks:
+	default:
+	}
+	h.blocks <- hash
+}
+
+// NotifyMempool requests a live-mempool push; bursts coalesce and the run
+// loop throttles to one push per mempoolPushInterval.
+func (h *Hub) NotifyMempool() {
+	select {
+	case h.mempoolCh <- struct{}{}:
 	default:
 	}
 }
@@ -81,6 +114,8 @@ func (h *Hub) NotifyBlock() {
 func (h *Hub) Run(ctx context.Context) {
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
+	mpTicker := time.NewTicker(h.mpInterval)
+	defer mpTicker.Stop()
 
 	for {
 		select {
@@ -93,6 +128,7 @@ func (h *Hub) Run(ctx context.Context) {
 		case c := <-h.register:
 			h.clients[c] = true
 			go h.pushStats(c)
+			go h.pushMempool(c)
 
 		case c := <-h.unregister:
 			h.drop(c)
@@ -115,8 +151,28 @@ func (h *Hub) Run(ctx context.Context) {
 				h.removeWatcher(cmd.txid, cmd.client)
 			}
 
-		case <-h.blocks:
+		case hash := <-h.blocks:
 			h.pushAll()
+			// Immediate mempool push so the bar contraction lands with
+			// the flash, not on the next throttle tick.
+			h.mempoolDirty = false
+			clients := h.clientList()
+			if len(clients) > 0 {
+				go h.pushMempool(clients...)
+				go h.pushBlockFlash(hash, clients...)
+			}
+
+		case <-h.mempoolCh:
+			h.mempoolDirty = true
+
+		case <-mpTicker.C:
+			if !h.mempoolDirty {
+				continue
+			}
+			h.mempoolDirty = false
+			if clients := h.clientList(); len(clients) > 0 {
+				go h.pushMempool(clients...)
+			}
 
 		case <-ticker.C:
 			h.pushAll()
@@ -124,14 +180,20 @@ func (h *Hub) Run(ctx context.Context) {
 	}
 }
 
-// pushAll refreshes stats for every client and state for every watched
-// txid. Snapshots of the loop-owned maps are taken here; the fetches and
-// sends run outside the loop.
-func (h *Hub) pushAll() {
+// clientList snapshots the loop-owned client set for use outside the loop.
+func (h *Hub) clientList() []*wsClient {
 	clients := make([]*wsClient, 0, len(h.clients))
 	for c := range h.clients {
 		clients = append(clients, c)
 	}
+	return clients
+}
+
+// pushAll refreshes stats for every client and state for every watched
+// txid. Snapshots of the loop-owned maps are taken here; the fetches and
+// sends run outside the loop.
+func (h *Hub) pushAll() {
+	clients := h.clientList()
 	if len(clients) > 0 {
 		go h.pushStats(clients...)
 	}
@@ -170,6 +232,22 @@ func (h *Hub) pushStats(clients ...*wsClient) {
 		return // node down — clients keep their last numbers
 	}
 	h.send(clients, map[string]any{"type": "stats", "data": stats})
+}
+
+func (h *Hub) pushMempool(clients ...*wsClient) {
+	update, err := h.mempool()
+	if err != nil {
+		return // node down — clients keep their last numbers
+	}
+	h.send(clients, map[string]any{"type": "mempool", "data": update})
+}
+
+func (h *Hub) pushBlockFlash(hash string, clients ...*wsClient) {
+	flash, err := h.blockFlash(hash)
+	if err != nil {
+		return // node down — no banner
+	}
+	h.send(clients, map[string]any{"type": "block", "data": flash})
 }
 
 func (h *Hub) pushTx(txid string, clients ...*wsClient) {

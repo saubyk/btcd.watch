@@ -111,6 +111,9 @@ type Service struct {
 	intervalMu   sync.Mutex
 	intervalAt   time.Time
 	intervalMean time.Duration
+
+	arrivalsMu sync.Mutex
+	arrivals   []arrival
 }
 
 func NewService(backend node.Backend, cfg Config) *Service {

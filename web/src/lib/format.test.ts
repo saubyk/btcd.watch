@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  formatAgeShort,
   formatBtc,
   formatCompact,
   formatEta,
@@ -56,6 +57,16 @@ describe('truncateMiddle', () => {
   })
   it('leaves short strings alone', () => {
     expect(truncateMiddle('abcdef')).toBe('abcdef')
+  })
+})
+
+describe('formatAgeShort', () => {
+  it('renders feed-row ages', () => {
+    const now = 1_750_000_000_000
+    expect(formatAgeShort(now / 1000 - 1, now)).toBe('just now')
+    expect(formatAgeShort(now / 1000 - 12, now)).toBe('12s ago')
+    expect(formatAgeShort(now / 1000 - 120, now)).toBe('2m ago')
+    expect(formatAgeShort(now / 1000 + 60, now)).toBe('just now')
   })
 })
 

@@ -30,10 +30,43 @@ func testHub(t *testing.T, txs map[string]*explorer.Tx) (*Hub, context.CancelFun
 		}
 		return nil, explorer.ErrTxNotFound
 	}
-	h := NewHub(stats, tx)
+	mempool := func() (*explorer.MempoolUpdate, error) {
+		return &explorer.MempoolUpdate{
+			Queue:    &explorer.Queue{TxCount: 2},
+			Arrivals: []explorer.Arrival{},
+		}, nil
+	}
+	blockFlash := func(hash string) (*explorer.BlockFlash, error) {
+		return &explorer.BlockFlash{Height: 43, TxCount: 7}, nil
+	}
+	h := NewHub(stats, tx, mempool, blockFlash)
+	h.mpInterval = 50 * time.Millisecond // don't make tests wait 2s
 	ctx, cancel := context.WithCancel(context.Background())
 	go h.Run(ctx)
 	return h, cancel
+}
+
+// recvConnect drains the two connect pushes (stats + mempool, in either
+// order since they run in separate goroutines).
+func recvConnect(t *testing.T, c *wsClient) {
+	t.Helper()
+	types := map[any]bool{}
+	for range 2 {
+		types[recv(t, c)["type"]] = true
+	}
+	if !types["stats"] || !types["mempool"] {
+		t.Fatalf("connect pushes = %v, want stats + mempool", types)
+	}
+}
+
+// recvTypes collects the next n messages' types.
+func recvTypes(t *testing.T, c *wsClient, n int) map[string]int {
+	t.Helper()
+	got := map[string]int{}
+	for range n {
+		got[recv(t, c)["type"].(string)]++
+	}
+	return got
 }
 
 // recv waits for one message on the client's buffer.
@@ -61,14 +94,36 @@ func TestHubStatsOnConnectAndBlock(t *testing.T) {
 
 	c := fakeClient(8)
 	h.register <- c
+	recvConnect(t, c)
 
-	if msg := recv(t, c); msg["type"] != "stats" {
-		t.Fatalf("first message = %v, want stats", msg["type"])
+	// A block pushes stats, a fresh mempool state, and the block flash.
+	h.NotifyBlock("hash43")
+	got := recvTypes(t, c, 3)
+	if got["stats"] != 1 || got["mempool"] != 1 || got["block"] != 1 {
+		t.Fatalf("block pushes = %v, want stats + mempool + block", got)
 	}
+}
 
-	h.NotifyBlock()
-	if msg := recv(t, c); msg["type"] != "stats" {
-		t.Fatalf("block message = %v, want stats", msg["type"])
+func TestHubMempoolPushThrottled(t *testing.T) {
+	h, cancel := testHub(t, nil)
+	defer cancel()
+
+	c := fakeClient(8)
+	h.register <- c
+	recvConnect(t, c)
+
+	// A burst of tx-accepted notifications coalesces into one push on
+	// the next throttle tick.
+	for range 5 {
+		h.NotifyMempool()
+	}
+	if msg := recv(t, c); msg["type"] != "mempool" {
+		t.Fatalf("got %v, want mempool", msg["type"])
+	}
+	select {
+	case raw := <-c.send:
+		t.Fatalf("extra push after burst: %s", raw)
+	case <-time.After(100 * time.Millisecond):
 	}
 }
 
@@ -88,8 +143,8 @@ func TestHubWatchFanOutTargetsOnlyWatchers(t *testing.T) {
 	watcher, bystander := fakeClient(8), fakeClient(8)
 	h.register <- watcher
 	h.register <- bystander
-	recv(t, watcher)   // connect stats
-	recv(t, bystander) // connect stats
+	recvConnect(t, watcher)
+	recvConnect(t, bystander)
 
 	h.commands <- wsCommand{client: watcher, watch: true, txid: txid}
 
@@ -102,18 +157,15 @@ func TestHubWatchFanOutTargetsOnlyWatchers(t *testing.T) {
 		t.Fatalf("tx data = %v", data)
 	}
 
-	// A block pushes stats to everyone but tx updates only to watchers.
-	h.NotifyBlock()
-	sawTx := map[bool]int{}
-	for range 2 {
-		m := recv(t, watcher)
-		sawTx[m["type"] == "tx"]++
+	// A block pushes stats/mempool/flash to everyone but tx updates only
+	// to watchers.
+	h.NotifyBlock("hash43")
+	got := recvTypes(t, watcher, 4)
+	if got["tx"] != 1 {
+		t.Fatalf("watcher after block: %v (want a tx push too)", got)
 	}
-	if sawTx[true] != 1 || sawTx[false] != 1 {
-		t.Fatalf("watcher after block: %v (want 1 stats + 1 tx)", sawTx)
-	}
-	if m := recv(t, bystander); m["type"] != "stats" {
-		t.Fatalf("bystander got %v, want stats only", m["type"])
+	if got := recvTypes(t, bystander, 3); got["tx"] != 0 {
+		t.Fatalf("bystander after block: %v (want no tx push)", got)
 	}
 	select {
 	case raw := <-bystander.send:
@@ -131,15 +183,15 @@ func TestHubUnwatchStopsUpdates(t *testing.T) {
 
 	c := fakeClient(8)
 	h.register <- c
-	recv(t, c)
+	recvConnect(t, c)
 
 	h.commands <- wsCommand{client: c, watch: true, txid: txid}
 	recv(t, c)
 	h.commands <- wsCommand{client: c, watch: false, txid: txid}
 
-	h.NotifyBlock()
-	if m := recv(t, c); m["type"] != "stats" {
-		t.Fatalf("got %v, want stats only after unwatch", m["type"])
+	h.NotifyBlock("hash43")
+	if got := recvTypes(t, c, 3); got["tx"] != 0 {
+		t.Fatalf("got %v, want no tx push after unwatch", got)
 	}
 	select {
 	case raw := <-c.send:
@@ -158,14 +210,14 @@ func TestHubDropsSlowClient(t *testing.T) {
 	healthy := fakeClient(64)
 	h.register <- slow
 	h.register <- healthy
-	recv(t, healthy)
-	// slow's single buffer slot now holds its connect-stats message and
-	// is never drained.
+	recvConnect(t, healthy)
+	// slow's single buffer slot now holds its first connect push and is
+	// never drained; the second connect push already fails to send.
 
-	// Two more pushes: the second trySend to slow fails → dropped.
-	h.NotifyBlock()
+	// Further pushes guarantee the drop.
+	h.NotifyBlock("hash43")
 	time.Sleep(50 * time.Millisecond)
-	h.NotifyBlock()
+	h.NotifyBlock("hash44")
 
 	select {
 	case <-slow.done:

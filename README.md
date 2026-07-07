@@ -9,9 +9,11 @@ plain-English answer: pending (with your place in the mempool queue and a
 live **Watch** mode that flips to "Confirmed 🎉" the moment a block lands),
 confirmed (with a 6-segment safety meter), an address summary with balance
 and activity, or a block with its transaction list. The landing page
-doubles as a network dashboard: a live mempool "queue" visualization, block
-height, halving countdown, and BTC price — with a fee ticker in the header
-that opens the fee helper from any view.
+doubles as a network dashboard: a live mempool "queue" that grows and
+shrinks with real traffic (with a per-transaction "just joined the line"
+feed and a flash when a block is mined), block height, halving countdown,
+and BTC price — with a fee ticker in the header that opens the fee helper
+from any view.
 
 - **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **Milestone plan**: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)
@@ -81,7 +83,7 @@ All endpoints under `/api`; amounts are satoshis. See
 | `GET /api/block/{heightOrHash}?offset&limit` | Block stats + paginated tx list |
 | `GET /api/fees` | Three fee tiers from mempool percentiles |
 | `GET /api/stats` | Height, mempool + queue bands, ETAs, halving, price |
-| `GET /api/ws` | WebSocket: live stats + watched-tx pushes |
+| `GET /api/ws` | WebSocket: live stats, mempool queue + arrivals, block flashes, watched-tx pushes |
 | `GET /api/healthz` | Node connectivity |
 
 ## Testing

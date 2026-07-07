@@ -1,7 +1,12 @@
 // Design-level options from the handoff, fixed as build-time constants.
 export const appConfig = {
   showMempool: true,
+  /** Live mempool pushes (queue + arrivals feed); off = static queue from
+   * the 10s stats pushes only (useful for tests/screenshots). */
+  liveMempool: true,
   showStats: true,
+  /** Seconds the "block mined" flash stays visible. */
+  minedFlashSeconds: 6,
   defaultDetail: 'beginner' as 'beginner' | 'detailed',
   /** Seconds between REST watch polls on a pending tx. */
   watchPollSeconds: 15,

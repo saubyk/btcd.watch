@@ -1,26 +1,40 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { api } from '../api/client'
-import type { FeeEstimate, Stats } from '../api/types'
+import type {
+  BlockFlash,
+  FeeEstimate,
+  MempoolUpdate,
+  Stats,
+} from '../api/types'
 import { live } from '../api/ws'
 import { appConfig } from '../appConfig'
 
 export interface NetworkData {
   stats: Stats | null
   fees: FeeEstimate | null
+  /** Latest live mempool push (fresher than stats.queue); null until the
+   * first push, or always with liveMempool off. */
+  mempool: MempoolUpdate | null
+  /** Recently mined block, cleared after minedFlashSeconds. */
+  minedFlash: BlockFlash | null
   /** True while the backend (and its node) are reachable. */
   connected: boolean
 }
 
 /**
  * Landing-page data. Stats arrive as WebSocket pushes (on connect, per
- * block, and periodic ticks); fees are refetched when the block height
- * moves. A slow REST poll remains as a fallback while the socket is down.
+ * block, and periodic ticks); the live mempool layer pushes queue +
+ * arrivals on tx-accepted (throttled) and a flash per block. Fees are
+ * refetched when the block height moves. A slow REST poll remains as a
+ * fallback while the socket is down.
  */
 export function useNetworkData(): NetworkData {
   const [data, setData] = useState<NetworkData>({
     stats: null,
     fees: null,
+    mempool: null,
+    minedFlash: null,
     connected: false,
   })
   const lastHeight = useRef(0)
@@ -66,6 +80,55 @@ export function useNetworkData(): NetworkData {
       offStats()
       offConn()
       clearInterval(timer)
+    }
+  }, [])
+
+  // Live mempool layer: queue/arrivals pushes plus the block-mined flash.
+  useEffect(() => {
+    if (!appConfig.liveMempool) return
+
+    const offMempool = live.onMempool((mempool) => {
+      setData((prev) => ({
+        ...prev,
+        mempool,
+        // The dark stats bar's mempool tile follows the same feed; keep
+        // the stats reference stable when the count hasn't moved.
+        stats:
+          prev.stats &&
+          prev.stats.mempool.txCount !== mempool.queue.txCount
+            ? {
+                ...prev.stats,
+                mempool: {
+                  ...prev.stats.mempool,
+                  txCount: mempool.queue.txCount,
+                },
+              }
+            : prev.stats,
+      }))
+    })
+
+    let flashTimer: ReturnType<typeof setTimeout> | undefined
+    const offBlock = live.onBlock((minedFlash) => {
+      setData((prev) => ({ ...prev, minedFlash }))
+      clearTimeout(flashTimer)
+      flashTimer = setTimeout(() => {
+        setData((prev) => ({ ...prev, minedFlash: null }))
+      }, appConfig.minedFlashSeconds * 1000)
+    })
+
+    // A dropped socket must not leave a frozen live payload shadowing the
+    // REST-fallback stats.queue.
+    const offConn = live.onConnection((open) => {
+      if (!open) {
+        setData((prev) => ({ ...prev, mempool: null, minedFlash: null }))
+      }
+    })
+
+    return () => {
+      offMempool()
+      offBlock()
+      offConn()
+      clearTimeout(flashTimer)
     }
   }, [])
 
