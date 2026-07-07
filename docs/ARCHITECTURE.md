@@ -201,6 +201,8 @@ Response envelope:
   "feeRateSatPerVb": 1.0,                // null for coinbase
   "vsize": 141,
   "firstSeen": 1735000000,               // mempool entry time while pending; block time once confirmed
+  "type": { "code": "P2WPKH", "in": "P2WPKH", "out": "P2TR" },  // null when non-standard; in empty for coinbase
+  "rbf": true,                           // BIP-125 replaceability signaled (any input sequence < 0xfffffffe)
   "pending": {                           // null once confirmed
     "txsAhead": 12,
     "vbytesAhead": 34567,
@@ -220,6 +222,7 @@ height** — height and block time come from a follow-up `getblockheader` (cache
 ```json
 {
   "address": "bcrt1q...",
+  "type": "P2WPKH",            // script-type code from the decoded address; "" hides the type UI
   "balanceSats": 5000000000,
   "receivedSats": 7500000000,
   "sentSats": 2500000000,
@@ -502,6 +505,16 @@ prevouts) and `getmempoolentry` (which reports mempool fees). Therefore:
    chips, watched txs re-checked every block) don't refetch parents.
 5. **Coinbase**: no inputs → `feeSats`/`feeRateSatPerVb` are `null`; the UI shows
    "newly minted" instead of a fee.
+
+### Script-type classification
+
+Codes (`P2TR`/`P2WSH`/`P2WPKH`/`P2SH`/`P2PKH`) are assigned in `internal/chain/scripttype.go`:
+addresses by their decoded concrete type (exact on every network — the design prototype's
+mainnet prefix rules are deliberately not reproduced), transaction sides by btcd's verbose
+`scriptPubKey.type` class (inputs via the prevout cache, which stores the class alongside value
+and addresses). A transaction's headline code is the dominant input type, falling back to the
+output type (coinbase); friendly names and explainer copy live in the frontend
+(`web/src/lib/scriptTypes.ts`), keyed by code.
 
 ### From / to heuristics (beginner view)
 

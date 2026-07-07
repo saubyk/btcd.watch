@@ -7,8 +7,10 @@ question well: **"is my Bitcoin confirmed?"** — powered entirely by your own
 Paste a transaction ID, address, or block height/hash and get a
 plain-English answer: pending (with your place in the mempool queue and a
 live **Watch** mode that flips to "Confirmed 🎉" the moment a block lands),
-confirmed (with a 6-segment safety meter), an address summary with balance
-and activity, or a block with its transaction list. The landing page
+confirmed (with a 6-segment safety meter and script-type chips — plus an
+RBF badge while replaceable), an address summary with balance, activity,
+and a plain-English address-type explainer, or a block with its
+transaction list. The landing page
 doubles as a network dashboard: a live mempool "queue" that grows and
 shrinks with real traffic (with a per-transaction "just joined the line"
 feed and a flash when a block is mined), block height, halving countdown,

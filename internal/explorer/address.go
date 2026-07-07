@@ -6,6 +6,8 @@ import (
 	"github.com/btcsuite/btcd/address/v2"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/btcutil/v2"
+
+	"btcdwatch.com/internal/chain"
 )
 
 // scanChunk is the page size used when walking address history for
@@ -30,7 +32,10 @@ type AddressActivity struct {
 }
 
 type AddressSummary struct {
-	Address      string   `json:"address"`
+	Address string `json:"address"`
+	// Type is the script-type code (P2WPKH, P2TR, ...); empty hides the
+	// type chips.
+	Type         string   `json:"type"`
 	BalanceSats  int64    `json:"balanceSats"`
 	ReceivedSats int64    `json:"receivedSats"`
 	SentSats     int64    `json:"sentSats"`
@@ -78,6 +83,7 @@ func (s *Service) Address(addr address.Address, offset, limit int) (*AddressSumm
 
 	summary := &AddressSummary{
 		Address:      encoded,
+		Type:         chain.ScriptTypeOf(addr),
 		BalanceSats:  totals.received - totals.sent,
 		ReceivedSats: totals.received,
 		SentSats:     totals.sent,

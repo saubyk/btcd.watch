@@ -1539,6 +1539,58 @@ button.bp-tile-item--link:hover {
   margin-bottom: 4px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  flex-wrap: wrap;
+}
+
+/* ===== Script-type chips ===== */
+.bp-type-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.bp-type-chip {
+  font-family: var(--bp-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bp-orange-text);
+  background: var(--bp-orange-tint);
+  padding: 3px 9px;
+  border-radius: 99px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.bp-type-chip--name {
+  font-family: var(--bp-font);
+  color: var(--bp-text-label);
+  background: #f4ece0;
+}
+.bp-type-chip--rbf {
+  font-family: var(--bp-font);
+  color: var(--bp-amber-deep);
+  background: var(--bp-amber-tint);
+  border: 1px solid var(--bp-amber-border);
+}
+.bp-addr-explain {
+  display: flex;
+  gap: 8px;
+  background: var(--bp-inset);
+  border: 1px solid var(--bp-divider-3);
+  border-radius: 11px;
+  padding: 10px 13px;
+  margin-bottom: 20px;
+  font-size: 12.5px;
+  color: #7c6e5c;
+  line-height: 1.5;
+}
+/* The explainer takes over the 20px gap above the balance. */
+.bp-address-row--typed {
+  margin-bottom: 10px;
+}
+.bp-detail-type-codes {
+  font-family: var(--bp-mono);
+  color: var(--bp-text-muted);
 }
 .bp-address-value {
   font-family: var(--bp-mono);

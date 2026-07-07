@@ -15,6 +15,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/v2"
 	"github.com/btcsuite/btcd/chainhash/v2"
 
+	"btcdwatch.com/internal/chain"
 	"btcdwatch.com/internal/node"
 )
 
@@ -48,29 +49,43 @@ type TxPending struct {
 	QueueVbytesFraction float64 `json:"queueVbytesFraction"`
 }
 
+// TxType classifies a transaction's script types. In is empty for
+// coinbases (no real inputs); Code is the headline chip — the dominant
+// input type, falling back to the output type.
+type TxType struct {
+	Code string `json:"code"`
+	In   string `json:"in"`
+	Out  string `json:"out"`
+}
+
 // Tx is the /api/tx response payload. Amounts are satoshis; nullable
 // fields are pointers.
 type Tx struct {
-	Txid            string     `json:"txid"`
-	Status          string     `json:"status"`
-	AmountSats      int64      `json:"amountSats"`
-	FiatUSD         *float64   `json:"fiatUsd"`
-	From            []string   `json:"from"`
-	To              []string   `json:"to"`
-	IsCoinbase      bool       `json:"isCoinbase"`
-	Confirmations   int64      `json:"confirmations"`
-	Block           *TxBlock   `json:"block"`
-	FeeSats         *int64     `json:"feeSats"`
-	FeeRateSatPerVb *float64   `json:"feeRateSatPerVb"`
-	VSize           int64      `json:"vsize"`
-	FirstSeen       int64      `json:"firstSeen"`
-	Pending         *TxPending `json:"pending"`
+	Txid            string   `json:"txid"`
+	Status          string   `json:"status"`
+	AmountSats      int64    `json:"amountSats"`
+	FiatUSD         *float64 `json:"fiatUsd"`
+	From            []string `json:"from"`
+	To              []string `json:"to"`
+	IsCoinbase      bool     `json:"isCoinbase"`
+	Confirmations   int64    `json:"confirmations"`
+	Block           *TxBlock `json:"block"`
+	FeeSats         *int64   `json:"feeSats"`
+	FeeRateSatPerVb *float64 `json:"feeRateSatPerVb"`
+	VSize           int64    `json:"vsize"`
+	FirstSeen       int64    `json:"firstSeen"`
+	// Type is nil when neither side classifies (non-standard scripts).
+	Type *TxType `json:"type"`
+	// Rbf reports BIP-125 replaceability signaling.
+	Rbf     bool       `json:"rbf"`
+	Pending *TxPending `json:"pending"`
 }
 
 // prevout is the cached slice of a parent transaction an input spends.
 type prevout struct {
-	valueSats int64
-	addrs     []string
+	valueSats  int64
+	addrs      []string
+	scriptType string
 }
 
 // PriceQuote is the current BTC/USD price as seen by the explorer. OK is
@@ -179,8 +194,10 @@ func (s *Service) GetTx(txid string) (*Tx, error) {
 
 	isCoinbase := len(raw.Vin) > 0 && raw.Vin[0].IsCoinBase()
 	tx.IsCoinbase = isCoinbase
+	tx.Rbf = signalsRBF(raw.Vin, isCoinbase)
 
 	var sumInSats int64
+	var inCodes []string
 	if !isCoinbase {
 		ins, err := s.resolvePrevouts(raw.Vin)
 		if err != nil {
@@ -189,6 +206,7 @@ func (s *Service) GetTx(txid string) (*Tx, error) {
 		seen := make(map[string]bool)
 		for _, in := range ins {
 			sumInSats += in.valueSats
+			inCodes = append(inCodes, in.scriptType)
 			for _, a := range in.addrs {
 				if !seen[a] {
 					seen[a] = true
@@ -198,7 +216,8 @@ func (s *Service) GetTx(txid string) (*Tx, error) {
 		}
 	}
 
-	s.deriveOutputs(tx, raw.Vout, isCoinbase, sumInSats)
+	outCodes := s.deriveOutputs(tx, raw.Vout, isCoinbase, sumInSats)
+	tx.Type = deriveTxType(inCodes, outCodes)
 
 	if q := s.priceUSD(); q.OK {
 		fiat := btcutil.Amount(tx.AmountSats).ToBTC() * q.USD
@@ -227,12 +246,14 @@ func (s *Service) GetTx(txid string) (*Tx, error) {
 	return tx, nil
 }
 
-// deriveOutputs fills amount, to, fee, and feerate. From-addresses must
+// deriveOutputs fills amount, to, fee, and feerate, and returns the
+// script-type codes of the counted (non-change) outputs so the type
+// classification reflects the actual recipient. From-addresses must
 // already be populated (change heuristic: a vout whose addresses are all in
 // the from-set is treated as change and excluded; if that excludes every
 // output — a self-send — all outputs count).
 func (s *Service) deriveOutputs(tx *Tx, vouts []btcjson.Vout,
-	isCoinbase bool, sumInSats int64) {
+	isCoinbase bool, sumInSats int64) []string {
 
 	fromSet := make(map[string]bool, len(tx.From))
 	for _, a := range tx.From {
@@ -253,6 +274,7 @@ func (s *Service) deriveOutputs(tx *Tx, vouts []btcjson.Vout,
 
 	var sumOutSats, amountSats int64
 	var toAddrs []string
+	var outCodes []string
 	seen := make(map[string]bool)
 	addTo := func(addrs []string) {
 		if len(addrs) == 0 {
@@ -274,6 +296,7 @@ func (s *Service) deriveOutputs(tx *Tx, vouts []btcjson.Vout,
 		}
 		amountSats += sats
 		addTo(voutAddrs(v))
+		outCodes = append(outCodes, chain.ScriptTypeFromRPC(v.ScriptPubKey.Type))
 	}
 
 	// Self-send: every output looked like change. Count them all.
@@ -281,6 +304,7 @@ func (s *Service) deriveOutputs(tx *Tx, vouts []btcjson.Vout,
 		amountSats = sumOutSats
 		for _, v := range vouts {
 			addTo(voutAddrs(v))
+			outCodes = append(outCodes, chain.ScriptTypeFromRPC(v.ScriptPubKey.Type))
 		}
 	}
 
@@ -298,6 +322,7 @@ func (s *Service) deriveOutputs(tx *Tx, vouts []btcjson.Vout,
 			tx.FeeRateSatPerVb = &rate
 		}
 	}
+	return outCodes
 }
 
 // resolvePrevouts returns value and addresses for each input, fetching
@@ -332,8 +357,9 @@ func (s *Service) resolvePrevouts(vins []btcjson.Vin) ([]prevout, error) {
 		}
 		v := parent.Vout[in.Vout]
 		p := prevout{
-			valueSats: satsFromBTC(v.Value),
-			addrs:     voutAddrs(v),
+			valueSats:  satsFromBTC(v.Value),
+			addrs:      voutAddrs(v),
+			scriptType: chain.ScriptTypeFromRPC(v.ScriptPubKey.Type),
 		}
 		s.prevouts.put(key, p)
 		out = append(out, p)
@@ -464,6 +490,61 @@ func (s *Service) header(hashStr string) (*btcjson.GetBlockHeaderVerboseResult, 
 	}
 	s.headers.put(hashStr, header)
 	return header, nil
+}
+
+// signalsRBF reports BIP-125 replaceability: any non-coinbase input with
+// a sequence below 0xfffffffe opts in.
+func signalsRBF(vins []btcjson.Vin, isCoinbase bool) bool {
+	if isCoinbase {
+		return false
+	}
+	for _, in := range vins {
+		if in.Sequence < 0xfffffffe {
+			return true
+		}
+	}
+	return false
+}
+
+// deriveTxType picks the dominant classified code per side ("mixed types
+// → show the dominant/input type" per the design). Nil when neither side
+// classifies.
+func deriveTxType(inCodes, outCodes []string) *TxType {
+	t := &TxType{
+		In:  dominantCode(inCodes),
+		Out: dominantCode(outCodes),
+	}
+	t.Code = t.In
+	if t.Code == "" {
+		t.Code = t.Out
+	}
+	if t.Code == "" {
+		return nil
+	}
+	return t
+}
+
+// dominantCode returns the most frequent non-empty code; on a tied count
+// the code seen earliest in the list wins.
+func dominantCode(codes []string) string {
+	counts := make(map[string]int, len(codes))
+	firstAt := make(map[string]int, len(codes))
+	best, bestCount := "", 0
+	for i, c := range codes {
+		if c == "" {
+			continue
+		}
+		if _, ok := firstAt[c]; !ok {
+			firstAt[c] = i
+		}
+		counts[c]++
+		if counts[c] > bestCount ||
+			(counts[c] == bestCount && firstAt[c] < firstAt[best]) {
+
+			best, bestCount = c, counts[c]
+		}
+	}
+	return best
 }
 
 // voutAddrs extracts output addresses, tolerating both btcd result shapes

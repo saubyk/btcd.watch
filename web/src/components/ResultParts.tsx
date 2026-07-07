@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 import type { Tx } from '../api/types'
 import { formatBtc, formatFiat, truncateMiddle } from '../lib/format'
+import { TypeChips } from './TypeChips'
 
 export function BackButton({ onClick }: { onClick: () => void }) {
   return (
@@ -11,7 +12,7 @@ export function BackButton({ onClick }: { onClick: () => void }) {
   )
 }
 
-/** Big BTC amount + fiat + from→to line. */
+/** Big BTC amount + fiat + from→to line + script-type chips. */
 export function AmountHeader({ tx }: { tx: Tx }) {
   return (
     <>
@@ -32,6 +33,19 @@ export function AmountHeader({ tx }: { tx: Tx }) {
         <span className="bp-fromto-arrow">→</span>
         <span>{formatAddrList(tx.to)}</span>
       </div>
+      {(tx.type || (tx.rbf && tx.status === 'pending')) && (
+        <div className="bp-type-chips">
+          {tx.type && <TypeChips code={tx.type.code} suffix=" transaction" />}
+          {tx.rbf && tx.status === 'pending' && (
+            <span
+              className="bp-type-chip bp-type-chip--rbf"
+              title="The sender can rebroadcast this transaction with a higher fee to speed it up"
+            >
+              RBF — fee can be bumped
+            </span>
+          )}
+        </div>
+      )}
     </>
   )
 }

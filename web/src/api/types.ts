@@ -16,6 +16,13 @@ export interface TxPending {
   queueVbytesFraction: number
 }
 
+/** Script-type classification; `in` is empty for coinbases. */
+export interface TxType {
+  code: string
+  in: string
+  out: string
+}
+
 export interface Tx {
   txid: string
   status: 'pending' | 'confirmed'
@@ -30,6 +37,10 @@ export interface Tx {
   feeRateSatPerVb: number | null
   vsize: number
   firstSeen: number
+  /** Null when neither side classifies (non-standard scripts). */
+  type: TxType | null
+  /** BIP-125 replaceability signaled. */
+  rbf: boolean
   pending: TxPending | null
 }
 
@@ -44,6 +55,8 @@ export interface AddressActivity {
 
 export interface AddressSummary {
   address: string
+  /** Script-type code (P2WPKH, P2TR, …); empty hides the type chips. */
+  type: string
   balanceSats: number
   receivedSats: number
   sentSats: number

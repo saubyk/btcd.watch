@@ -5,7 +5,9 @@ import type { AddressActivity, AddressSummary } from '../api/types'
 import { CopyIcon } from '../components/Icons'
 import { BackButton } from '../components/ResultParts'
 import { useCopy } from '../components/Toast'
+import { TypeChips } from '../components/TypeChips'
 import { useLoadMore } from '../hooks/useLoadMore'
+import { SCRIPT_TYPES } from '../lib/scriptTypes'
 import {
   formatBtc,
   formatFiat,
@@ -24,6 +26,7 @@ export function AddressView({
   onHome: () => void
 }) {
   const copy = useCopy()
+  const typeMeta = SCRIPT_TYPES[summary.type]
 
   // The merged activity list always starts at offset 0, so its length is
   // the next offset (summary.offset is the last page's, not the list's).
@@ -42,8 +45,13 @@ export function AddressView({
 
       <div className="bp-card">
         <div className="bp-card-body">
-          <div className="bp-address-label">◆ Wallet address</div>
-          <div className="bp-address-row">
+          <div className="bp-address-label">
+            ◆ Wallet address
+            <TypeChips code={summary.type} />
+          </div>
+          <div
+            className={`bp-address-row${typeMeta ? ' bp-address-row--typed' : ''}`}
+          >
             <div className="bp-address-value">{summary.address}</div>
             <button
               className="bp-copy-btn"
@@ -53,6 +61,13 @@ export function AddressView({
               Copy
             </button>
           </div>
+
+          {typeMeta && (
+            <div className="bp-addr-explain">
+              <span>💡</span>
+              <span>{typeMeta.desc}</span>
+            </div>
+          )}
 
           <div className="bp-amount-row">
             <span className="bp-amount bp-amount--lg">

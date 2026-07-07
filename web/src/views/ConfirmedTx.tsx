@@ -9,6 +9,7 @@ import {
   formatTimestamp,
   truncateMiddle,
 } from '../lib/format'
+import { SCRIPT_TYPES } from '../lib/scriptTypes'
 
 export function ConfirmedTx({
   tx,
@@ -136,6 +137,18 @@ function DetailTable({ tx, copy }: { tx: Tx; copy: (t: string) => void }) {
       {tx.block && (
         <DetailRow label="Block hash" copyValue={tx.block.hash} onCopy={copy}>
           {truncateMiddle(tx.block.hash, 8, 4)}
+        </DetailRow>
+      )}
+      {tx.type && (
+        <DetailRow label="Type" sans>
+          {SCRIPT_TYPES[tx.type.code]?.name ?? tx.type.code}{' '}
+          <span className="bp-detail-type-codes">
+            (
+            {tx.type.in && tx.type.out
+              ? `${tx.type.in} → ${tx.type.out}`
+              : tx.type.in || tx.type.out}
+            )
+          </span>
         </DetailRow>
       )}
       <DetailRow label="Fee paid">
