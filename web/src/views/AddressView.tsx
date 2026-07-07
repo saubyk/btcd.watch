@@ -1,10 +1,11 @@
-import { useState, type Dispatch } from 'react'
+import type { Dispatch } from 'react'
 
 import { api } from '../api/client'
 import type { AddressActivity, AddressSummary } from '../api/types'
 import { CopyIcon } from '../components/Icons'
 import { BackButton } from '../components/ResultParts'
 import { useCopy } from '../components/Toast'
+import { useLoadMore } from '../hooks/useLoadMore'
 import {
   formatBtc,
   formatFiat,
@@ -23,23 +24,17 @@ export function AddressView({
   onHome: () => void
 }) {
   const copy = useCopy()
-  const [loadingMore, setLoadingMore] = useState(false)
 
-  const loadMore = async () => {
-    setLoadingMore(true)
-    try {
-      const page = await api.address(
-        summary.address,
-        summary.offset + summary.activity.length,
-        summary.limit,
-      )
-      dispatch({ type: 'address-more', page })
-    } catch {
-      // Leave the list as-is; the button stays for a retry.
-    } finally {
-      setLoadingMore(false)
-    }
-  }
+  // The merged activity list always starts at offset 0, so its length is
+  // the next offset (summary.offset is the last page's, not the list's).
+  const { loadMore, loading: loadingMore } = useLoadMore(async () => {
+    const page = await api.address(
+      summary.address,
+      summary.activity.length,
+      summary.limit,
+    )
+    dispatch({ type: 'address-more', page })
+  })
 
   return (
     <main className="bp-view bp-result">

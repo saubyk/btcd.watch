@@ -1,6 +1,6 @@
 import type {
   AddressSummary,
-  Examples,
+  Block,
   FeeEstimate,
   SearchResult,
   Stats,
@@ -44,7 +44,10 @@ export const api = {
     get<AddressSummary>(
       `/api/address/${encodeURIComponent(addr)}?offset=${offset}&limit=${limit}`,
     ),
+  block: (ref: string | number, offset = 0, limit = 25) =>
+    get<Block>(
+      `/api/block/${encodeURIComponent(ref)}?offset=${offset}&limit=${limit}`,
+    ),
   fees: () => get<FeeEstimate>('/api/fees'),
   stats: () => get<Stats>('/api/stats'),
-  examples: () => get<Examples>('/api/examples'),
 }

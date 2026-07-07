@@ -15,12 +15,14 @@ export function ConfirmedTx({
   detail,
   justConfirmed,
   onSetDetail,
+  onSearch,
   onHome,
 }: {
   tx: Tx
   detail: 'beginner' | 'detailed'
   justConfirmed: boolean
   onSetDetail: (d: 'beginner' | 'detailed') => void
+  onSearch: (q: string) => void
   onHome: () => void
 }) {
   const copy = useCopy()
@@ -70,7 +72,11 @@ export function ConfirmedTx({
               )}
             </StatTile>
             {tx.block && (
-              <StatTile label="In block">
+              <StatTile
+                label="In block"
+                onClick={() => onSearch(String(tx.block!.height))}
+                title="See everything in this block"
+              >
                 {formatNumber(tx.block.height)}
               </StatTile>
             )}

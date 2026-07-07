@@ -12,7 +12,8 @@ export interface TxPending {
   vbytesAhead: number
   etaBlocks: number
   etaSeconds: number
-  queueFraction: number
+  /** Share of mempool vbytes paying a higher rate — position on the queue bar. */
+  queueVbytesFraction: number
 }
 
 export interface Tx {
@@ -55,9 +56,32 @@ export interface AddressSummary {
   hasMore: boolean
 }
 
+export interface BlockTx {
+  txid: string
+  amountSats: number
+  feeRateSatPerVb: number | null
+  isCoinbase: boolean
+}
+
+export interface Block {
+  height: number
+  hash: string
+  time: number
+  confirmations: number
+  txCount: number
+  avgFeeSatPerVb: number
+  sizeBytes: number
+  nextHeight: number | null
+  txs: BlockTx[]
+  offset: number
+  limit: number
+  hasMore: boolean
+}
+
 export type SearchResult =
   | { kind: 'tx'; tx: Tx }
   | { kind: 'address'; address: AddressSummary }
+  | { kind: 'block'; block: Block }
   | { kind: 'notfound'; query: string }
   | { kind: 'invalid'; query: string }
 
@@ -73,18 +97,31 @@ export interface FeeEstimate {
   source: 'mempool' | 'floor'
 }
 
+export interface QueueBand {
+  minSatPerVb: number
+  /** 0 on the open-ended front band. */
+  maxSatPerVb: number
+  vbytes: number
+}
+
+export interface Queue {
+  txCount: number
+  totalVbytes: number
+  /** Front of the line (highest fee) first. */
+  bands: QueueBand[]
+  /** Next-block cutoff position along the vbytes-proportional bar (0..1]. */
+  cutoffFraction: number
+  /** Lowest feerate still inside the cutoff. */
+  nextBlockRate: number
+}
+
 export interface Stats {
   network: string
   blockHeight: number
   mempool: { txCount: number; bytes: number }
+  queue: Queue | null
   nextBlockEtaSeconds: number
   avgBlockIntervalSeconds: number
   halving: { blocksRemaining: number; etaSeconds: number }
   price: { usd: number; source: string; updatedAt: number } | null
-}
-
-export interface Examples {
-  pendingTxid: string | null
-  confirmedTxid: string | null
-  address: string | null
 }

@@ -227,8 +227,10 @@ func TestGetTxPending(t *testing.T) {
 	if got.Pending.EtaSeconds != wantEta {
 		t.Errorf("etaSeconds = %d, want %d", got.Pending.EtaSeconds, wantEta)
 	}
-	if got.Pending.QueueFraction != 0.5 {
-		t.Errorf("queueFraction = %v, want 0.5", got.Pending.QueueFraction)
+	// 400 vB pay more, out of 750 vB total (self included).
+	if want := 400.0 / 750.0; got.Pending.QueueVbytesFraction != want {
+		t.Errorf("queueVbytesFraction = %v, want %v",
+			got.Pending.QueueVbytesFraction, want)
 	}
 	if got.FirstSeen != 1735000300 {
 		t.Errorf("firstSeen = %d", got.FirstSeen)

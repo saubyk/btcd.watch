@@ -1,11 +1,10 @@
 import {
-  ExampleChips,
-  FeeEstimator,
   LiveStatusPill,
   NodeCta,
   SearchBar,
   StatsBar,
 } from '../components/Landing'
+import { MempoolQueue } from '../components/MempoolQueue'
 import { appConfig } from '../appConfig'
 import type { NetworkData } from '../hooks/useNetworkData'
 
@@ -30,10 +29,9 @@ export function Landing({
           happening — in plain English.
         </p>
         <SearchBar onSearch={onSearch} />
-        <ExampleChips examples={data.examples} onSearch={onSearch} />
       </section>
 
-      {appConfig.showFeeEstimator && <FeeEstimator fees={data.fees} />}
+      {appConfig.showMempool && <MempoolQueue stats={data.stats} />}
       {appConfig.showStats && <StatsBar stats={data.stats} />}
       <NodeCta />
     </main>

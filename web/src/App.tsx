@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useReducer } from 'react'
+import { useCallback, useEffect, useReducer, useState } from 'react'
 
+import { FeeSlideOver } from './components/FeeSlideOver'
 import { Footer } from './components/Footer'
 import { Header } from './components/Header'
 import { ToastProvider } from './components/Toast'
@@ -7,6 +8,7 @@ import { useNetworkData } from './hooks/useNetworkData'
 import { useSearch } from './hooks/useSearch'
 import { initialState, reducer } from './state'
 import { AddressView } from './views/AddressView'
+import { BlockView } from './views/BlockView'
 import { ConfirmedTx } from './views/ConfirmedTx'
 import { Landing } from './views/Landing'
 import { LoadingView } from './views/LoadingView'
@@ -15,6 +17,7 @@ import { PendingTx } from './views/PendingTx'
 
 export function App() {
   const [state, dispatch] = useReducer(reducer, initialState)
+  const [feeOpen, setFeeOpen] = useState(false)
   const data = useNetworkData()
   const search = useSearch(dispatch)
 
@@ -24,7 +27,7 @@ export function App() {
     window.scrollTo({ top: 0 })
   }, [])
 
-  // Deep links: /?q=<txid|address> searches on cold load.
+  // Deep links: /?q=<txid|address|height> searches on cold load.
   useEffect(() => {
     const q = new URLSearchParams(location.search).get('q')
     if (q) void search(q)
@@ -55,6 +58,7 @@ export function App() {
             detail={state.detail}
             justConfirmed={state.justConfirmed}
             onSetDetail={(detail) => dispatch({ type: 'set-detail', detail })}
+            onSearch={search}
             onHome={goHome}
           />
         ) : null
@@ -63,6 +67,7 @@ export function App() {
           <PendingTx
             tx={state.tx}
             fees={data.fees}
+            stats={data.stats}
             watching={state.watching}
             dispatch={dispatch}
             onHome={goHome}
@@ -76,6 +81,15 @@ export function App() {
             onHome={goHome}
           />
         ) : null
+      case 'block':
+        return state.block ? (
+          <BlockView
+            block={state.block}
+            dispatch={dispatch}
+            onSearch={search}
+            onHome={goHome}
+          />
+        ) : null
       default:
         return <Landing data={data} onSearch={search} />
     }
@@ -84,9 +98,18 @@ export function App() {
   return (
     <ToastProvider>
       <div className="bp-app">
-        <Header onHome={goHome} />
+        <Header
+          fees={data.fees}
+          onHome={goHome}
+          onOpenFees={() => setFeeOpen(true)}
+        />
         {view}
         <Footer network={network} />
+        <FeeSlideOver
+          fees={data.fees}
+          open={feeOpen}
+          onClose={() => setFeeOpen(false)}
+        />
       </div>
     </ToastProvider>
   )

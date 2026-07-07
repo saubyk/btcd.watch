@@ -23,11 +23,12 @@ type (
 
 // TxUpdate is the compact per-transaction push payload.
 type TxUpdate struct {
-	Status        string `json:"status"`
-	Confirmations int64  `json:"confirmations"`
-	BlockHeight   *int64 `json:"blockHeight"`
-	TxsAhead      *int   `json:"txsAhead"`
-	EtaSeconds    *int64 `json:"etaSeconds"`
+	Status              string   `json:"status"`
+	Confirmations       int64    `json:"confirmations"`
+	BlockHeight         *int64   `json:"blockHeight"`
+	TxsAhead            *int     `json:"txsAhead"`
+	EtaSeconds          *int64   `json:"etaSeconds"`
+	QueueVbytesFraction *float64 `json:"queueVbytesFraction"`
 }
 
 type wsCommand struct {
@@ -187,6 +188,7 @@ func (h *Hub) pushTx(txid string, clients ...*wsClient) {
 	if tx.Pending != nil {
 		update.TxsAhead = &tx.Pending.TxsAhead
 		update.EtaSeconds = &tx.Pending.EtaSeconds
+		update.QueueVbytesFraction = &tx.Pending.QueueVbytesFraction
 	}
 	h.send(clients, map[string]any{
 		"type": "tx",

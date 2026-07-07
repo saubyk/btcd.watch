@@ -28,6 +28,7 @@ type Stats struct {
 	Network                 string       `json:"network"`
 	BlockHeight             int64        `json:"blockHeight"`
 	Mempool                 MempoolStats `json:"mempool"`
+	Queue                   *Queue       `json:"queue"`
 	NextBlockEtaSeconds     int64        `json:"nextBlockEtaSeconds"`
 	AvgBlockIntervalSeconds int64        `json:"avgBlockIntervalSeconds"`
 	Halving                 HalvingStats `json:"halving"`
@@ -44,6 +45,10 @@ func (s *Service) Stats() (*Stats, error) {
 	}
 
 	snapshot, err := s.mempool.Snapshot()
+	if err != nil {
+		return nil, err
+	}
+	queue, err := s.mempool.Queue()
 	if err != nil {
 		return nil, err
 	}
@@ -72,6 +77,7 @@ func (s *Service) Stats() (*Stats, error) {
 			TxCount: len(snapshot),
 			Bytes:   mempoolBytes,
 		},
+		Queue:                   queue,
 		NextBlockEtaSeconds:     int64(nextEta.Seconds()),
 		AvgBlockIntervalSeconds: int64(interval.Seconds()),
 		Halving: HalvingStats{

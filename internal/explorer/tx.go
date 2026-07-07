@@ -39,11 +39,13 @@ type TxBlock struct {
 // TxPending describes a pending transaction's position in the mempool
 // queue.
 type TxPending struct {
-	TxsAhead      int     `json:"txsAhead"`
-	VBytesAhead   int64   `json:"vbytesAhead"`
-	EtaBlocks     int64   `json:"etaBlocks"`
-	EtaSeconds    int64   `json:"etaSeconds"`
-	QueueFraction float64 `json:"queueFraction"`
+	TxsAhead    int   `json:"txsAhead"`
+	VBytesAhead int64 `json:"vbytesAhead"`
+	EtaBlocks   int64 `json:"etaBlocks"`
+	EtaSeconds  int64 `json:"etaSeconds"`
+	// QueueVbytesFraction positions the tx along the vbytes-proportional
+	// queue bar: the share of mempool vbytes paying a higher rate.
+	QueueVbytesFraction float64 `json:"queueVbytesFraction"`
 }
 
 // Tx is the /api/tx response payload. Amounts are satoshis; nullable
@@ -109,11 +111,6 @@ type Service struct {
 	intervalMu   sync.Mutex
 	intervalAt   time.Time
 	intervalMean time.Duration
-
-	examplesMu        sync.Mutex
-	examplesTip       int64
-	examplesConfirmed *string
-	examplesAddress   *string
 }
 
 func NewService(backend node.Backend, cfg Config) *Service {
@@ -141,8 +138,7 @@ func (s *Service) Mempool() *Mempool {
 
 // OnBlock invalidates everything a new block outdates: the mempool
 // snapshot, address totals, and the measured block interval. (Block
-// headers and prevouts are immutable and stay cached; the examples cache
-// is keyed by tip height and refreshes itself.)
+// headers and prevouts are immutable and stay cached.)
 func (s *Service) OnBlock() {
 	s.mempool.Invalidate()
 	s.totals.clear()
@@ -365,8 +361,12 @@ func (s *Service) derivePending(tx *Tx) error {
 		myRate = *tx.FeeRateSatPerVb
 	}
 
+	// totalVbytes includes the tx's own vsize so the fraction shares a
+	// denominator with the stats queue bar the marker is drawn on.
 	pending := &TxPending{}
+	var totalVbytes int64
 	for txid, e := range snapshot {
+		totalVbytes += e.VSize
 		if txid == tx.Txid {
 			continue
 		}
@@ -379,8 +379,9 @@ func (s *Service) derivePending(tx *Tx) error {
 	pending.EtaBlocks = pending.VBytesAhead/vbytesPerBlock + 1
 	interval := s.avgBlockInterval()
 	pending.EtaSeconds = pending.EtaBlocks * int64(interval.Seconds())
-	if n := len(snapshot); n > 1 {
-		pending.QueueFraction = float64(pending.TxsAhead) / float64(n-1)
+	if totalVbytes > 0 {
+		pending.QueueVbytesFraction =
+			float64(pending.VBytesAhead) / float64(totalVbytes)
 	}
 
 	tx.Pending = pending
@@ -484,7 +485,16 @@ func satsFromBTC(btc float64) int64 {
 	return int64(amt)
 }
 
-func isNoTxInfo(err error) bool {
+// rpcErrCode unwraps a btcjson RPC error code, if err carries one.
+func rpcErrCode(err error) (btcjson.RPCErrorCode, bool) {
 	var rpcErr *btcjson.RPCError
-	return errors.As(err, &rpcErr) && rpcErr.Code == btcjson.ErrRPCNoTxInfo
+	if !errors.As(err, &rpcErr) {
+		return 0, false
+	}
+	return rpcErr.Code, true
+}
+
+func isNoTxInfo(err error) bool {
+	code, ok := rpcErrCode(err)
+	return ok && code == btcjson.ErrRPCNoTxInfo
 }

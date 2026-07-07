@@ -46,11 +46,29 @@ export function StatTile({
   label,
   children,
   mono = true,
+  onClick,
+  title,
 }: {
   label: string
   children: ReactNode
   mono?: boolean
+  onClick?: () => void
+  title?: string
 }) {
+  if (onClick) {
+    return (
+      <button className="bp-tile-item bp-tile-item--link" onClick={onClick} title={title}>
+        <div className="bp-tile-label">{label}</div>
+        <div
+          className={`bp-tile-value bp-tile-link-value${
+            mono ? ' bp-tile-value--mono' : ''
+          }`}
+        >
+          {children} →
+        </div>
+      </button>
+    )
+  }
   return (
     <div className="bp-tile-item">
       <div className="bp-tile-label">{label}</div>

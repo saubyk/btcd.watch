@@ -34,13 +34,15 @@ func TestClassifyQuery(t *testing.T) {
 		in   string
 		want QueryKind
 	}{
-		{"txid lowercase", txid, QueryTx},
-		{"txid uppercase normalized", strings.ToUpper(txid), QueryTx},
-		{"txid with whitespace", "  " + txid + "  ", QueryTx},
+		{"txid lowercase", txid, QueryHex},
+		{"txid uppercase normalized", strings.ToUpper(txid), QueryHex},
+		{"txid with whitespace", "  " + txid + "  ", QueryHex},
 		{"64 chars non-hex", strings.Repeat("zz", 32), QueryInvalid},
 		{"regtest bech32", bcrt1, QueryAddress},
 		{"mainnet bech32 rejected on regtest", mainnetBech32, QueryInvalid},
 		{"garbage", "not-a-txid-or-address", QueryInvalid},
+		{"block height digits", "842317", QueryBlockHeight},
+		{"block height with commas", "842,317", QueryBlockHeight},
 		{"empty", "", QueryInvalid},
 	}
 
@@ -51,8 +53,8 @@ func TestClassifyQuery(t *testing.T) {
 				t.Fatalf("ClassifyQuery(%q) = %v, want %v",
 					tt.in, got.Kind, tt.want)
 			}
-			if got.Kind == QueryTx && got.Txid != strings.ToLower(strings.TrimSpace(tt.in)) {
-				t.Fatalf("txid not normalized: %q", got.Txid)
+			if got.Kind == QueryHex && got.Hex != strings.ToLower(strings.TrimSpace(tt.in)) {
+				t.Fatalf("hex not normalized: %q", got.Hex)
 			}
 			if got.Kind == QueryAddress && got.Address.EncodeAddress() != tt.in {
 				t.Fatalf("address round-trip mismatch: %q", got.Address.EncodeAddress())

@@ -71,6 +71,23 @@ export function ClockIcon({ size = 26, color = '#fff' }) {
   )
 }
 
+export function ChevronDownIcon({ size = 13, color = '#8A7C68' }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
 export function CopyIcon({ size = 14 }) {
   return (
     <svg

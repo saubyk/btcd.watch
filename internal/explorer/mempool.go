@@ -39,6 +39,9 @@ type Mempool struct {
 	fetched time.Time
 	dirty   bool
 	entries map[string]MempoolEntry
+	// queue is the fee-band histogram derived from entries, computed at
+	// most once per refresh (a pure function of the snapshot).
+	queue *Queue
 }
 
 func NewMempool(backend node.Backend) *Mempool {
@@ -52,16 +55,41 @@ func (m *Mempool) Snapshot() (map[string]MempoolEntry, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if err := m.refreshLocked(); err != nil {
+		return nil, err
+	}
+	return m.entries, nil
+}
+
+// Queue returns the fee-band histogram for the current snapshot. The
+// derivation sorts the whole mempool, so it is memoized per refresh
+// rather than recomputed on every stats push.
+func (m *Mempool) Queue() (*Queue, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if err := m.refreshLocked(); err != nil {
+		return nil, err
+	}
+	if m.queue == nil {
+		m.queue = queueFromSnapshot(m.entries)
+	}
+	return m.queue, nil
+}
+
+// refreshLocked refetches the mempool when the cached copy is stale; the
+// caller must hold m.mu.
+func (m *Mempool) refreshLocked() error {
 	age := time.Since(m.fetched)
 	fresh := m.entries != nil && age < snapshotMaxAge &&
 		!(m.dirty && age >= snapshotMinAge)
 	if fresh {
-		return m.entries, nil
+		return nil
 	}
 
 	raw, err := m.backend.GetRawMempoolVerbose()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	m.dirty = false
 
@@ -88,8 +116,9 @@ func (m *Mempool) Snapshot() (map[string]MempoolEntry, error) {
 	}
 
 	m.entries = entries
+	m.queue = nil
 	m.fetched = time.Now()
-	return m.entries, nil
+	return nil
 }
 
 // Invalidate forces the next Snapshot call to refresh; used when a block

@@ -31,10 +31,26 @@
     opacity: 0.5;
   }
 }
+@keyframes bpSlideIn {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.bp-pulse-slow {
+  animation: bpPulse 2s ease-in-out infinite;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .bp-pulse,
-  .bp-shimmer {
+  .bp-pulse-slow,
+  .bp-shimmer,
+  .bp-fee-panel {
     animation: none !important;
   }
 }

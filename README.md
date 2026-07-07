@@ -4,12 +4,14 @@ A beginner-friendly Bitcoin transaction & address explorer that answers one
 question well: **"is my Bitcoin confirmed?"** — powered entirely by your own
 [btcd](https://github.com/btcsuite/btcd) node. *Don't trust. Verify.*
 
-Paste a transaction ID or address and get a plain-English answer: pending
-(with queue position and a live **Watch** mode that flips to "Confirmed 🎉"
-the moment a block lands), confirmed (with a 6-segment safety meter), or an
-address summary with balance and activity. The landing page doubles as a
-network dashboard: block height, mempool size, fee estimator, halving
-countdown, and BTC price.
+Paste a transaction ID, address, or block height/hash and get a
+plain-English answer: pending (with your place in the mempool queue and a
+live **Watch** mode that flips to "Confirmed 🎉" the moment a block lands),
+confirmed (with a 6-segment safety meter), an address summary with balance
+and activity, or a block with its transaction list. The landing page
+doubles as a network dashboard: a live mempool "queue" visualization, block
+height, halving countdown, and BTC price — with a fee ticker in the header
+that opens the fee helper from any view.
 
 - **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **Milestone plan**: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)
@@ -73,12 +75,12 @@ All endpoints under `/api`; amounts are satoshis. See
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /api/search?q=` | Classify + resolve a txid or address |
+| `GET /api/search?q=` | Classify + resolve a block height/hash, txid, or address |
 | `GET /api/tx/{txid}` | Transaction detail (fee, from/to, queue position) |
 | `GET /api/address/{addr}?offset&limit` | Balance, totals, paginated activity |
+| `GET /api/block/{heightOrHash}?offset&limit` | Block stats + paginated tx list |
 | `GET /api/fees` | Three fee tiers from mempool percentiles |
-| `GET /api/stats` | Height, mempool, ETAs, halving, price |
-| `GET /api/examples` | Real landing-chip data |
+| `GET /api/stats` | Height, mempool + queue bands, ETAs, halving, price |
 | `GET /api/ws` | WebSocket: live stats + watched-tx pushes |
 | `GET /api/healthz` | Node connectivity |
 
@@ -96,13 +98,16 @@ in CI-style usage: `go test ./... -race`.
 
 1. Start the harness (`start-network.sh`, with `miner.sh`/`txgen.sh`
    churning) and `./scripts/dev.sh` + Vite (or the single binary).
-2. Take a fresh txid from txgen (or click the **⏳ Pending** example chip)
-   → the pending view shows queue position and estimated wait.
+2. Take a fresh txid from txgen → the pending view shows your place in the
+   mempool queue and the estimated wait.
 3. Press **🔔 Watch this transaction** → the panel shows it is live-connected;
    on the next mined block the view flips to **Confirmed** with the 🎉
    banner — no refresh.
 4. Search an address from the churn → balance, totals, and activity grow as
    the generator keeps running.
+5. Search a block height (or click **In block** on a confirmed tx) → the
+   block view lists its transactions, coinbase first with a `miner reward`
+   badge; prev/next buttons walk the chain.
 
 ## Layout
 
@@ -111,8 +116,8 @@ cmd/btcdwatchd/    server entry point
 internal/config    YAML + env configuration
 internal/chain     network params, query classification, halving math
 internal/node      websocket rpcclient behind the mockable Backend seam
-internal/explorer  fee/from-to/amount derivation, mempool snapshot,
-                   fees/stats/examples/address aggregation
+internal/explorer  fee/from-to/amount derivation, mempool snapshot + queue,
+                   fees/stats/block/address aggregation
 internal/price     BTC/USD quote (CoinGecko + static fallback)
 internal/api       REST handlers, WebSocket hub, embedded-SPA serving
 web/               Vite + React + TypeScript SPA (embedded via web/embed.go)

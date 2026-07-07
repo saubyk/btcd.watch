@@ -1,6 +1,6 @@
 // Design-level options from the handoff, fixed as build-time constants.
 export const appConfig = {
-  showFeeEstimator: true,
+  showMempool: true,
   showStats: true,
   defaultDetail: 'beginner' as 'beginner' | 'detailed',
   /** Seconds between REST watch polls on a pending tx. */

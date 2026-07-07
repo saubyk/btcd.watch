@@ -1,46 +1,39 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { api } from '../api/client'
-import type { Examples, FeeEstimate, Stats } from '../api/types'
+import type { FeeEstimate, Stats } from '../api/types'
 import { live } from '../api/ws'
 import { appConfig } from '../appConfig'
 
 export interface NetworkData {
   stats: Stats | null
   fees: FeeEstimate | null
-  examples: Examples | null
   /** True while the backend (and its node) are reachable. */
   connected: boolean
 }
 
 /**
  * Landing-page data. Stats arrive as WebSocket pushes (on connect, per
- * block, and periodic ticks); fees and examples are refetched when the
- * block height moves. A slow REST poll remains as a fallback while the
- * socket is down.
+ * block, and periodic ticks); fees are refetched when the block height
+ * moves. A slow REST poll remains as a fallback while the socket is down.
  */
 export function useNetworkData(): NetworkData {
   const [data, setData] = useState<NetworkData>({
     stats: null,
     fees: null,
-    examples: null,
     connected: false,
   })
   const lastHeight = useRef(0)
 
-  // Fees + examples: fetched on mount and per new block (keyed off the
-  // stats push height).
-  const refreshDerived = async () => {
-    const [fees, examples] = await Promise.allSettled([
-      api.fees(),
-      api.examples(),
-    ])
-    setData((prev) => ({
-      ...prev,
-      fees: fees.status === 'fulfilled' ? fees.value : prev.fees,
-      examples:
-        examples.status === 'fulfilled' ? examples.value : prev.examples,
-    }))
+  // Fees: fetched on mount and per new block (keyed off the stats push
+  // height).
+  const refreshFees = async () => {
+    try {
+      const fees = await api.fees()
+      setData((prev) => ({ ...prev, fees }))
+    } catch {
+      // Keep the previous rates while the node is unreachable.
+    }
   }
 
   useEffect(() => {
@@ -48,7 +41,7 @@ export function useNetworkData(): NetworkData {
       setData((prev) => ({ ...prev, stats, connected: true }))
       if (stats.blockHeight !== lastHeight.current) {
         lastHeight.current = stats.blockHeight
-        void refreshDerived()
+        void refreshFees()
       }
     }
 

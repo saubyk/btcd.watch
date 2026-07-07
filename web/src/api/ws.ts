@@ -7,6 +7,7 @@ export interface TxUpdate {
   blockHeight: number | null
   txsAhead: number | null
   etaSeconds: number | null
+  queueVbytesFraction: number | null
 }
 
 type ServerMessage =

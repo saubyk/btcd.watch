@@ -54,6 +54,7 @@ export function useWatchTx(
           type: 'tx-queue',
           txsAhead: update.txsAhead,
           etaSeconds: update.etaSeconds,
+          queueVbytesFraction: update.queueVbytesFraction,
         })
       }
     })

@@ -49,7 +49,7 @@ flowchart LR
     subgraph Server["btcdwatchd (single Go binary)"]
         REST["REST handlers<br/>/api/*"]
         HUB["WS hub<br/>/api/ws"]
-        EXP["explorer<br/>(tx, address, fees,<br/>stats, examples)"]
+        EXP["explorer<br/>(tx, address, block,<br/>fees, stats, queue)"]
         SNAP["mempool snapshot<br/>(shared, lazy, ≤5s)"]
         PRICE["price service<br/>(CoinGecko + static fallback)"]
         NODE["node.Backend<br/>(rpcclient wrapper)"]
@@ -101,12 +101,13 @@ cmd/btcdwatchd/            main: load config, construct node client, explorer se
 internal/config/           YAML config file + BTCDWATCH_* environment overrides. Validation.
 internal/chain/            Network abstraction: maps a network name to chaincfg.Params;
                            halving math from params.SubsidyReductionInterval;
-                           ClassifyQuery() (txid vs address vs invalid).
+                           ClassifyQuery() (txid vs address vs invalid) + ParseBlockHeight();
+                           BlockSubsidy() for coinbase-derived block fee totals.
 internal/node/             node.Backend interface + the rpcclient websocket implementation.
                            Owns notification registration, reconnect handling, and the
                            degraded-mode behavior when btcd is unreachable.
 internal/explorer/         All data derivation, one file per concern:
-                           tx.go, address.go, mempool.go, fees.go, stats.go, examples.go
+                           tx.go, address.go, block.go, mempool.go, fees.go, stats.go, queue.go
                            (+ *_test.go). Pure logic against node.Backend — fully unit-testable
                            with mocked backends and btcjson fixtures.
 internal/price/            BTC/USD price: CoinGecko fetch, refresh loop, cache,
@@ -161,21 +162,26 @@ All endpoints live under `/api`. Conventions:
 The **backend** classifies the query; the frontend never guesses (the design prototype's regexes
 were mainnet-only and are deliberately not reproduced client-side).
 
-Classification (`internal/chain.ClassifyQuery`):
+Classification (`internal/chain.ClassifyQuery` + `ParseBlockHeight`), block rules first:
 
-1. Trimmed 64-char hex string → treat as txid, attempt tx lookup.
-2. Otherwise `btcutil.DecodeAddress(q, activeParams)` succeeds → address (this validates the
+1. All digits (thousands-separator commas allowed, ≤10 digits) → block height lookup.
+2. Trimmed 64-char hex string → txid **or block hash**: the leading-zeros form
+   (`00000000…`, i.e. a mined mainnet-style hash) tries the block lookup first with txid as
+   fallback; anything else tries txid first and falls back to a block-hash lookup before
+   reporting not-found (regtest hashes rarely show leading zeros).
+3. Otherwise `btcutil.DecodeAddress(q, activeParams)` succeeds → address (this validates the
    bech32 HRP / base58 version against the **configured** network, so a mainnet `bc1…` address is
    correctly rejected on regtest, whose HRP is `bcrt`).
-3. Otherwise → invalid.
+4. Otherwise → invalid.
 
 Response envelope:
 
 ```json
 { "kind": "tx",       "tx": { ...same shape as /api/tx/{txid}... } }
 { "kind": "address",  "address": { ...same shape as /api/address/{addr}... } }
-{ "kind": "notfound", "query": "..." }   // well-formed txid/address, but unknown to the node
-{ "kind": "invalid",  "query": "..." }   // not a txid or valid address for this network
+{ "kind": "block",    "block": { ...same shape as /api/block/{ref}... } }
+{ "kind": "notfound", "query": "..." }   // well-formed, but unknown to the node
+{ "kind": "invalid",  "query": "..." }   // not a height, txid, or valid address for this network
 ```
 
 ### `GET /api/tx/{txid}`
@@ -200,7 +206,7 @@ Response envelope:
     "vbytesAhead": 34567,
     "etaBlocks": 1,
     "etaSeconds": 600,
-    "queueFraction": 0.35
+    "queueVbytesFraction": 0.58      // share of mempool vbytes paying more — "you are here" on the queue bar
   }
 }
 ```
@@ -247,6 +253,19 @@ transaction**.
 {
   "blockHeight": 512,
   "mempool": { "txCount": 14, "bytes": 4096 },
+  "queue": {
+    "txCount": 14,
+    "totalVbytes": 3900,
+    "bands": [                        // front of the line first; maxSatPerVb 0 = open-ended
+      { "minSatPerVb": 15, "maxSatPerVb": 0,  "vbytes": 350 },
+      { "minSatPerVb": 10, "maxSatPerVb": 15, "vbytes": 510 },
+      { "minSatPerVb": 6,  "maxSatPerVb": 10, "vbytes": 860 },
+      { "minSatPerVb": 4,  "maxSatPerVb": 6,  "vbytes": 1170 },
+      { "minSatPerVb": 1,  "maxSatPerVb": 4,  "vbytes": 1010 }
+    ],
+    "cutoffFraction": 1,              // next-block cutoff position along the vbytes bar (0..1]
+    "nextBlockRate": 1                // lowest feerate still inside the cutoff
+  },
   "nextBlockEtaSeconds": 420,
   "avgBlockIntervalSeconds": 610,
   "halving": { "blocksRemaining": 88, "etaSeconds": 53680 },
@@ -259,6 +278,10 @@ transaction**.
   than 2 headers are available (fresh regtest chain).
 - `halving`: from `params.SubsidyReductionInterval` (150 on regtest, 210 000 on mainnet) —
   network-correct by construction.
+- `queue`: the landing-page mempool visualization, from the shared snapshot. Five fixed display
+  bands (15+, 10–15, 6–10, 4–6, 1–4 sat/vB; sub-1 entries lump into the last). The cutoff walks
+  entries by descending feerate until one block's worth of vbytes (1 MvB) is consumed. Since
+  stats ride the WS pushes, the bar animates live.
 
 ### `GET /api/fees`
 
@@ -280,20 +303,34 @@ to configured floors, forced monotonic (slow ≤ standard ≤ urgent), minimum 1
 mempool yields the configured floors with `source: "floor"`. The estimator's "typical cost"
 arithmetic (rate × preset vB sizes) stays client-side, per the design.
 
-### `GET /api/examples`
+### `GET /api/block/{heightOrHash}?offset=0&limit=25`
 
-Real, clickable example chips for the landing page — never fabricated data:
+`{ref}` is a height (digits, commas allowed) or a 64-hex block hash.
 
 ```json
 {
-  "pendingTxid": "hex" | null,     // highest-feerate tx currently in the mempool
-  "confirmedTxid": "hex" | null,   // first non-coinbase tx found walking back from the tip
-  "address": "bcrt1q..." | null    // an output address of that confirmed tx
+  "height": 512,
+  "hash": "hex",
+  "time": 1735000000,
+  "confirmations": 1042,            // "N blocks deep" in the UI
+  "txCount": 3120,
+  "avgFeeSatPerVb": 9.2,
+  "sizeBytes": 1420000,
+  "nextHeight": 513,                // null at the chain tip
+  "txs": [
+    { "txid": "hex", "amountSats": 320430000, "feeRateSatPerVb": null, "isCoinbase": true },
+    { "txid": "hex", "amountSats": 4250000,   "feeRateSatPerVb": 12.1, "isCoinbase": false }
+  ],
+  "offset": 0,
+  "limit": 25,
+  "hasMore": true
 }
 ```
 
-Cached and recomputed at most once per block. `null` fields cause the frontend to hide the
-corresponding chip.
+The transaction list is paginated (blocks hold thousands of txs); each row reuses the `/api/tx`
+derivation so amounts match the transaction view, with prevouts served from the LRU. The average
+feerate needs **no full-block scan**: total fees = coinbase outputs − `chain.BlockSubsidy(height)`,
+spread over the block's non-coinbase vsize (`(weight+3)/4` minus the coinbase's).
 
 ### `GET /api/healthz`
 
@@ -324,7 +361,8 @@ Server → client:
             "confirmations": 1,
             "blockHeight": 513,
             "txsAhead": 4,
-            "etaSeconds": 580 } }
+            "etaSeconds": 580,
+            "queueVbytesFraction": 0.58 } }
 ```
 
 Emission rules:
@@ -355,11 +393,11 @@ A single event-loop goroutine owns all shared state — no mutexes on hot paths:
   registered, and events are **deduplicated by height**, since which callback fires depends on
   btcd version/registration mode.
 - On each block: refresh the cached height / average block interval, invalidate the mempool
-  snapshot and address/examples caches, and re-check every watched txid via
+  snapshot and address-totals caches, and re-check every watched txid via
   `GetRawTransactionVerbose` → push `tx` updates.
 - `OnTxAcceptedVerbose` only sets a **dirty flag** on the shared mempool snapshot; the snapshot
-  refreshes lazily on next read with a maximum age of 5 s. Fee tiers, pending-queue position,
-  and examples all share it.
+  refreshes lazily on next read with a maximum age of 5 s. Fee tiers, the queue histogram, and
+  pending-queue position all share it.
 - **Reconnects**: rpcclient auto-reconnect stays enabled; notification registrations are
   re-issued in `OnClientConnected` (they do not survive a reconnect). While disconnected — and
   if the node is down at startup — the server **does not crash**: REST returns `503
@@ -481,7 +519,9 @@ For a pending tx, from the same snapshot:
 - `vbytesAhead` = their total vsize.
 - `etaBlocks` = `vbytesAhead / 1_000_000 + 1` (1 MvB ≈ one block of standard weight).
 - `etaSeconds` = `etaBlocks × avgBlockIntervalSeconds` (measured; see §4 stats).
-- `queueFraction` = position within the mempool for the visual queue meter.
+- `queueVbytesFraction` = `vbytesAhead / total mempool vbytes` (own vsize included in the
+  denominator, matching the stats queue bar) — the "you are here" marker, pushed live so the
+  marker moves as higher-fee txs clear.
 
 ### Address aggregation
 
@@ -576,7 +616,7 @@ following were verified against btcd 0.26.0-beta with `txindex=1` and `addrindex
 | `searchrawtransactions` | **btcd-only**; full address history incl. mempool; `includePrevOut` inlines input origins; requires `addrindex=1` |
 | `getrawmempool verbose=true` | per-entry `fee`, `vsize`, `time` — feeds snapshot |
 | `getmempoolinfo` | tx count + bytes for stats bar |
-| `getblockheader` / `getblockhash` / `getblockcount` / `getblock` | heights, times, examples walk-back |
+| `getblockheader` / `getblockhash` / `getblockcount` / `getblock` | heights, times, block view |
 | `validateaddress` | available, but address validation is done in-process via `btcutil.DecodeAddress` (no RPC round-trip) |
 | websocket notifications | `notifyblocks`, `notifynewtransactions` — must be explicitly registered; re-register after every reconnect |
 | `estimatefee` (legacy) | **present but deliberately unused** — unreliable, especially on regtest |

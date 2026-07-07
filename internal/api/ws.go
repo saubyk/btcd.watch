@@ -117,13 +117,13 @@ func (c *wsClient) readPump(hub *Hub, params *chaincfg.Params) {
 			continue
 		}
 		query := chain.ClassifyQuery(msg.Txid, params)
-		if query.Kind != chain.QueryTx {
+		if query.Kind != chain.QueryHex {
 			continue
 		}
 		hub.commands <- wsCommand{
 			client: c,
 			watch:  msg.Type == "watch",
-			txid:   query.Txid,
+			txid:   query.Hex,
 		}
 	}
 }

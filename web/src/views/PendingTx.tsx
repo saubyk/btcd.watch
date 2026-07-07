@@ -1,7 +1,8 @@
 import type { Dispatch } from 'react'
 
-import type { FeeEstimate, Tx } from '../api/types'
+import type { FeeEstimate, Stats, Tx } from '../api/types'
 import { ClockIcon } from '../components/Icons'
+import { QueueBar } from '../components/QueueBar'
 import { AmountHeader, BackButton, StatTile } from '../components/ResultParts'
 import { useWatchTx } from '../hooks/useWatchTx'
 import { formatEta, formatNumber } from '../lib/format'
@@ -10,12 +11,14 @@ import type { Action } from '../state'
 export function PendingTx({
   tx,
   fees,
+  stats,
   watching,
   dispatch,
   onHome,
 }: {
   tx: Tx
   fees: FeeEstimate | null
+  stats: Stats | null
   watching: boolean
   dispatch: Dispatch<Action>
   onHome: () => void
@@ -23,12 +26,7 @@ export function PendingTx({
   const watch = useWatchTx(tx.txid, watching, dispatch)
   const rate = tx.feeRateSatPerVb ?? 0
   const urgent = fees?.tiers.find((t) => t.id === 'urgent')
-
-  // Queue meter: the further ahead of the mempool a tx sits, the fuller
-  // the bar. Clamped so it always reads as "in progress".
-  const progress = tx.pending
-    ? Math.min(94, Math.max(6, Math.round((1 - tx.pending.queueFraction) * 100)))
-    : 6
+  const queue = stats?.queue ?? null
 
   return (
     <main className="bp-view bp-result">
@@ -54,21 +52,33 @@ export function PendingTx({
 
           {tx.pending && (
             <div className="bp-wait-panel">
-              <div className="bp-wait-head">
-                <span className="bp-wait-label">Estimated wait</span>
+              <div
+                className={`bp-wait-head${queue ? ' bp-wait-head--queue' : ''}`}
+              >
+                <span className="bp-wait-label">Your place in line</span>
                 <span className="bp-wait-eta">
                   {formatEta(tx.pending.etaSeconds)}
                 </span>
               </div>
-              <div className="bp-wait-track">
-                <div className="bp-wait-fill" style={{ width: `${progress}%` }} />
-              </div>
-              <div className="bp-wait-foot">
-                <span>In mempool</span>
+              {queue && (
+                <QueueBar
+                  queue={queue}
+                  compact
+                  youFraction={tx.pending.queueVbytesFraction}
+                />
+              )}
+              <div
+                className={`bp-wait-foot${queue ? ' bp-wait-foot--queue' : ''}`}
+              >
+                {/* Until the first stats push there is no bar for the
+                    directional caption to point at. */}
+                <span>{queue ? '← Front of line' : 'In mempool'}</span>
                 <span>
                   {tx.pending.txsAhead === 0
                     ? 'next in line'
-                    : `~${formatNumber(tx.pending.txsAhead)} transactions ahead`}
+                    : `~${formatNumber(
+                        tx.pending.txsAhead,
+                      )} transactions ahead of you`}
                 </span>
               </div>
             </div>
