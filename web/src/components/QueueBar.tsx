@@ -16,22 +16,10 @@ export function QueueBar({
   compact?: boolean
   youFraction?: number
 }) {
-  const total = queue.totalVbytes
-
   return (
     <div className="bp-queue">
       <div className={`bp-queue-bar${compact ? ' bp-queue-bar--compact' : ''}`}>
-        {total === 0 ? (
-          <div className="bp-queue-seg bp-queue-seg--4" style={{ width: '100%' }} />
-        ) : (
-          queue.bands.map((band, i) => (
-            <div
-              key={i}
-              className={`bp-queue-seg bp-queue-seg--${i}`}
-              style={{ width: `${(band.vbytes / total) * 100}%` }}
-            />
-          ))
-        )}
+        <QueueSegments queue={queue} />
       </div>
       <Marker fraction={queue.cutoffFraction} kind="cutoff" label="next-block cutoff" />
       {youFraction != null && (
@@ -41,7 +29,26 @@ export function QueueBar({
   )
 }
 
-function Marker({
+/** The five fee-band segments, widths ∝ vbytes waiting per band. */
+export function QueueSegments({ queue }: { queue: Queue }) {
+  const total = queue.totalVbytes
+  if (total === 0) {
+    return <div className="bp-queue-seg bp-queue-seg--4" style={{ width: '100%' }} />
+  }
+  return (
+    <>
+      {queue.bands.map((band, i) => (
+        <div
+          key={i}
+          className={`bp-queue-seg bp-queue-seg--${i}`}
+          style={{ width: `${(band.vbytes / total) * 100}%` }}
+        />
+      ))}
+    </>
+  )
+}
+
+export function Marker({
   fraction,
   kind,
   label,

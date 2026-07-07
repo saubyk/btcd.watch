@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/btcsuite/btcd/btcjson"
+
 	"btcdwatch.com/internal/api"
 	"btcdwatch.com/internal/chain"
 	"btcdwatch.com/internal/config"
@@ -89,17 +91,20 @@ func run() error {
 		MaxScanTxs: cfg.Address.MaxScanTxs,
 	})
 
-	hub := api.NewHub(svc.Stats, svc.GetTx)
+	hub := api.NewHub(svc.Stats, svc.GetTx, svc.MempoolUpdate, svc.BlockFlash)
 	hubCtx, stopHub := context.WithCancel(context.Background())
 	defer stopHub()
 	go hub.Run(hubCtx)
 
 	backend.Start(node.Handlers{
-		OnBlock: func(height int32) {
+		OnBlock: func(_ int32, hash string) {
 			svc.OnBlock()
-			hub.NotifyBlock()
+			hub.NotifyBlock(hash)
 		},
-		OnTxAccepted: svc.Mempool().MarkDirty,
+		OnTxAccepted: func(raw *btcjson.TxRawResult) {
+			svc.NoteArrival(raw)
+			hub.NotifyMempool()
+		},
 	})
 
 	static, err := api.StaticHandler(*staticDir)

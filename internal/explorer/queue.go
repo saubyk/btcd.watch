@@ -18,9 +18,12 @@ type QueueBand struct {
 // Queue is the mempool "line" visualization payload: fee-band histogram
 // plus the next-block cutoff, all proportional to vbytes.
 type Queue struct {
-	TxCount     int         `json:"txCount"`
-	TotalVBytes int64       `json:"totalVbytes"`
-	Bands       []QueueBand `json:"bands"`
+	TxCount     int   `json:"txCount"`
+	TotalVBytes int64 `json:"totalVbytes"`
+	// PeakVBytes is the rolling recent-peak mempool depth — the queue
+	// bar's "capacity track" (set by Mempool.Queue; ≥ TotalVBytes).
+	PeakVBytes int64       `json:"peakVbytes"`
+	Bands      []QueueBand `json:"bands"`
 
 	// CutoffFraction is the next-block cutoff position along the bar:
 	// one block's worth of vbytes from the front, as a fraction of the

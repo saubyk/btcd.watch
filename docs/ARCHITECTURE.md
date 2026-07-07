@@ -256,6 +256,7 @@ transaction**.
   "queue": {
     "txCount": 14,
     "totalVbytes": 3900,
+    "peakVbytes": 8200,               // rolling recent-peak depth — the bar's "capacity track"
     "bands": [                        // front of the line first; maxSatPerVb 0 = open-ended
       { "minSatPerVb": 15, "maxSatPerVb": 0,  "vbytes": 350 },
       { "minSatPerVb": 10, "maxSatPerVb": 15, "vbytes": 510 },
@@ -280,8 +281,11 @@ transaction**.
   network-correct by construction.
 - `queue`: the landing-page mempool visualization, from the shared snapshot. Five fixed display
   bands (15+, 10–15, 6–10, 4–6, 1–4 sat/vB; sub-1 entries lump into the last). The cutoff walks
-  entries by descending feerate until one block's worth of vbytes (1 MvB) is consumed. Since
-  stats ride the WS pushes, the bar animates live.
+  entries by descending feerate until one block's worth of vbytes (1 MvB) is consumed.
+  `peakVbytes` is a rolling max of the depth (10-minute buckets over the last hour, never below
+  the current total) — the frontend draws the bar at `totalVbytes/peakVbytes` of the dashed
+  capacity track. Queue derivation is memoized per snapshot refresh; live updates ride the
+  `mempool` WS pushes (§5).
 
 ### `GET /api/fees`
 
@@ -356,6 +360,15 @@ Server → client:
 ```json
 { "type": "stats", "data": { ...same shape as GET /api/stats... } }
 
+{ "type": "mempool", "data": {
+    "queue": { ...same shape as stats.queue... },
+    "arrivals": [                       // newest first, capped at 12
+      { "txid": "hex", "amountSats": 4250000, "feeRateSatPerVb": 8.1,
+        "vsize": 141, "time": 1735000000 }
+    ] } }
+
+{ "type": "block", "data": { "height": 513, "txCount": 3102 } }
+
 { "type": "tx", "txid": "hex",
   "data": { "status": "pending" | "confirmed",
             "confirmations": 1,
@@ -367,8 +380,15 @@ Server → client:
 
 Emission rules:
 
-- `stats`: on connect, on every new block, on each price refresh, and on mempool changes
-  throttled to at most one push per few seconds.
+- `stats`: on connect, on every new block, and on the 10s tick (covers price refreshes and
+  slow mempool drift).
+- `mempool`: on connect, immediately per block (the bar contraction lands with the flash), and
+  on tx-accepted notifications coalesced to at most one push per 2s. Arrivals originate from
+  btcd's `notifynewtransactions` verbose payload (txid + gross output amount); fee rate and
+  vsize join from the next mempool-snapshot refresh, so an arrival appears within ~a second.
+  Entries that never resolve (mined/evicted first) are skipped and pruned.
+- `block`: once per connected block, after a `getblock` for the tx count — drives the landing
+  "block mined" flash.
 - `tx`: immediately on `watch` (current state), on every new block for each watched txid, and on
   a 10-second ticker while the watched tx is still pending (keeps queue position / ETA fresh).
 

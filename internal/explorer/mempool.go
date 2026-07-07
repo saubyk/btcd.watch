@@ -18,6 +18,18 @@ const snapshotMaxAge = 5 * time.Second
 // read would defeat the point of sharing it.
 const snapshotMinAge = time.Second
 
+// Peak tracking: the queue bar's "capacity track" is the rolling recent
+// peak of mempool vbytes, kept as a max per bucket over the last hour.
+const (
+	peakBucketDur = 10 * time.Minute
+	peakBuckets   = 6
+)
+
+type peakBucket struct {
+	start time.Time
+	max   int64
+}
+
 // MempoolEntry is one mempool transaction in the shared snapshot.
 type MempoolEntry struct {
 	FeeSats   int64
@@ -42,6 +54,8 @@ type Mempool struct {
 	// queue is the fee-band histogram derived from entries, computed at
 	// most once per refresh (a pure function of the snapshot).
 	queue *Queue
+	// peaks is the rolling window of per-bucket vbytes maxima.
+	peaks []peakBucket
 }
 
 func NewMempool(backend node.Backend) *Mempool {
@@ -65,16 +79,51 @@ func (m *Mempool) Snapshot() (map[string]MempoolEntry, error) {
 // derivation sorts the whole mempool, so it is memoized per refresh
 // rather than recomputed on every stats push.
 func (m *Mempool) Queue() (*Queue, error) {
+	_, queue, err := m.SnapshotAndQueue()
+	return queue, err
+}
+
+// SnapshotAndQueue returns the entries and their histogram from one
+// locked read, so callers joining per-tx data against the queue see a
+// single consistent snapshot.
+func (m *Mempool) SnapshotAndQueue() (map[string]MempoolEntry, *Queue, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if err := m.refreshLocked(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if m.queue == nil {
 		m.queue = queueFromSnapshot(m.entries)
+		m.queue.PeakVBytes = m.notePeakLocked(m.queue.TotalVBytes)
 	}
-	return m.queue, nil
+	return m.entries, m.queue, nil
+}
+
+// notePeakLocked records the current depth in the rolling window and
+// returns the recent-peak vbytes (never below the current total). The
+// caller must hold m.mu.
+func (m *Mempool) notePeakLocked(total int64) int64 {
+	now := time.Now()
+	bucket := now.Truncate(peakBucketDur)
+
+	if n := len(m.peaks); n > 0 && m.peaks[n-1].start.Equal(bucket) {
+		m.peaks[n-1].max = max(m.peaks[n-1].max, total)
+	} else {
+		m.peaks = append(m.peaks, peakBucket{start: bucket, max: total})
+	}
+
+	// Drop buckets outside the window; the slice stays tiny.
+	cutoff := bucket.Add(-time.Duration(peakBuckets-1) * peakBucketDur)
+	for len(m.peaks) > 0 && m.peaks[0].start.Before(cutoff) {
+		m.peaks = m.peaks[1:]
+	}
+
+	peak := total
+	for _, b := range m.peaks {
+		peak = max(peak, b.max)
+	}
+	return peak
 }
 
 // refreshLocked refetches the mempool when the cached copy is stale; the

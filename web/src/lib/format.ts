@@ -57,6 +57,14 @@ export function formatRelative(unixSecs: number, now = Date.now()): string {
   return `${d} ${d === 1 ? 'day' : 'days'} ago`
 }
 
+/** Unix seconds → "just now" / "12s ago" / "2m ago" (feed rows). */
+export function formatAgeShort(unixSecs: number, nowMs = Date.now()): string {
+  const secs = Math.max(0, Math.floor(nowMs / 1000) - unixSecs)
+  if (secs < 3) return 'just now'
+  if (secs < 60) return `${secs}s ago`
+  return `${Math.round(secs / 60)}m ago`
+}
+
 /** Seconds → "~45 minutes" / "~2 hours" / "~622 days". */
 export function formatEta(seconds: number): string {
   if (seconds < 90) return '~1 minute'

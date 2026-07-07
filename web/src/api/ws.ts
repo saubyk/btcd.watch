@@ -1,4 +1,4 @@
-import type { Stats } from './types'
+import type { BlockFlash, MempoolUpdate, Stats } from './types'
 
 // TxUpdate is the compact per-transaction push from the server.
 export interface TxUpdate {
@@ -12,6 +12,8 @@ export interface TxUpdate {
 
 type ServerMessage =
   | { type: 'stats'; data: Stats }
+  | { type: 'mempool'; data: MempoolUpdate }
+  | { type: 'block'; data: BlockFlash }
   | { type: 'tx'; txid: string; data: TxUpdate }
 
 const INITIAL_BACKOFF_MS = 1000
@@ -29,6 +31,8 @@ class LiveSocket {
   private open = false
 
   private statsSubs = new Set<(s: Stats) => void>()
+  private mempoolSubs = new Set<(m: MempoolUpdate) => void>()
+  private blockSubs = new Set<(b: BlockFlash) => void>()
   private connSubs = new Set<(open: boolean) => void>()
   private watches = new Map<string, Set<(u: TxUpdate) => void>>()
 
@@ -41,6 +45,20 @@ class LiveSocket {
     this.statsSubs.add(cb)
     this.ensure()
     return () => this.statsSubs.delete(cb)
+  }
+
+  /** Subscribe to live mempool pushes (queue + arrivals feed). */
+  onMempool(cb: (m: MempoolUpdate) => void): () => void {
+    this.mempoolSubs.add(cb)
+    this.ensure()
+    return () => this.mempoolSubs.delete(cb)
+  }
+
+  /** Subscribe to block-mined pushes. */
+  onBlock(cb: (b: BlockFlash) => void): () => void {
+    this.blockSubs.add(cb)
+    this.ensure()
+    return () => this.blockSubs.delete(cb)
   }
 
   /** Subscribe to connection state changes. */
@@ -101,6 +119,10 @@ class LiveSocket {
       }
       if (msg.type === 'stats') {
         this.statsSubs.forEach((cb) => cb(msg.data))
+      } else if (msg.type === 'mempool') {
+        this.mempoolSubs.forEach((cb) => cb(msg.data))
+      } else if (msg.type === 'block') {
+        this.blockSubs.forEach((cb) => cb(msg.data))
       } else if (msg.type === 'tx') {
         this.watches.get(msg.txid)?.forEach((cb) => cb(msg.data))
       }

@@ -107,12 +107,34 @@ export interface QueueBand {
 export interface Queue {
   txCount: number
   totalVbytes: number
+  /** Rolling recent-peak depth — the capacity track (≥ totalVbytes). */
+  peakVbytes: number
   /** Front of the line (highest fee) first. */
   bands: QueueBand[]
   /** Next-block cutoff position along the vbytes-proportional bar (0..1]. */
   cutoffFraction: number
   /** Lowest feerate still inside the cutoff. */
   nextBlockRate: number
+}
+
+/** One recently accepted transaction in the landing feed. AmountSats is
+ * the gross output total (no prevouts in the notification). */
+export interface Arrival {
+  txid: string
+  amountSats: number
+  feeRateSatPerVb: number
+  vsize: number
+  time: number
+}
+
+export interface MempoolUpdate {
+  queue: Queue
+  arrivals: Arrival[]
+}
+
+export interface BlockFlash {
+  height: number
+  txCount: number
 }
 
 export interface Stats {

@@ -43,11 +43,12 @@ type Backend interface {
 // never call back into the node synchronously.
 type Handlers struct {
 	// OnBlock fires once per newly connected block (deduplicated across
-	// btcd's two block-notification variants).
-	OnBlock func(height int32)
+	// btcd's two block-notification variants) with the block's hash hex.
+	OnBlock func(height int32, hash string)
 
-	// OnTxAccepted fires when a transaction enters btcd's mempool.
-	OnTxAccepted func()
+	// OnTxAccepted fires when a transaction enters btcd's mempool, with
+	// the accepted transaction's verbose payload.
+	OnTxAccepted func(raw *btcjson.TxRawResult)
 
 	// OnConnect fires after every (re)connect, once notifications have
 	// been registered.
@@ -120,9 +121,9 @@ func New(cfg Config) (*Client, error) {
 
 			c.onBlock(height, hash.String())
 		},
-		OnTxAcceptedVerbose: func(_ *btcjson.TxRawResult) {
-			if h := c.getHandlers().OnTxAccepted; h != nil {
-				h()
+		OnTxAcceptedVerbose: func(raw *btcjson.TxRawResult) {
+			if h := c.getHandlers().OnTxAccepted; h != nil && raw != nil {
+				h(raw)
 			}
 		},
 	}
@@ -191,7 +192,7 @@ func (c *Client) onBlock(height int32, hash string) {
 
 	slog.Debug("block connected", "height", height, "hash", hash)
 	if h := c.getHandlers().OnBlock; h != nil {
-		h(height)
+		h(height, hash)
 	}
 }
 

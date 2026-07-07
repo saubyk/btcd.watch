@@ -31,7 +31,14 @@ export function Landing({
         <SearchBar onSearch={onSearch} />
       </section>
 
-      {appConfig.showMempool && <MempoolQueue stats={data.stats} />}
+      {appConfig.showMempool && (
+        <MempoolQueue
+          stats={data.stats}
+          mempool={data.mempool}
+          minedFlash={data.minedFlash}
+          onSearch={onSearch}
+        />
+      )}
       {appConfig.showStats && <StatsBar stats={data.stats} />}
       <NodeCta />
     </main>
