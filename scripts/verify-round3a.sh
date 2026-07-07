@@ -25,8 +25,15 @@ except Exception:
 }
 
 echo "— queue gains the capacity-track peak —"
-total=$(get "$API/api/stats" queue.totalVbytes)
-peak=$(get "$API/api/stats" queue.peakVbytes)
+# Right after a server restart /api/stats can 503 while the btcd
+# websocket session is still coming up — retry for up to ~15s.
+total="" peak=""
+for _ in $(seq 1 15); do
+  total=$(get "$API/api/stats" queue.totalVbytes)
+  peak=$(get "$API/api/stats" queue.peakVbytes)
+  [ -n "$peak" ] && break
+  sleep 1
+done
 [ -n "$peak" ] && [ "$peak" -ge "${total:-0}" ] 2>/dev/null
 check $? "queue.peakVbytes present, ≥ total" "total=$total peak=$peak"
 
