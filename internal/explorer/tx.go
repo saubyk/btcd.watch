@@ -471,19 +471,29 @@ func (s *Service) derivePending(tx *Tx) error {
 // chain is too short or timestamps are unusable.
 func (s *Service) avgBlockInterval() time.Duration {
 	s.intervalMu.Lock()
-	defer s.intervalMu.Unlock()
-
 	if !s.intervalAt.IsZero() && time.Since(s.intervalAt) < 30*time.Second {
-		return s.intervalMean
+		mean := s.intervalMean
+		s.intervalMu.Unlock()
+		return mean
 	}
+	s.intervalMu.Unlock()
 
+	// Measure with NO lock held. measureBlockInterval issues node RPCs,
+	// and OnBlock — running on the rpcclient notification goroutine —
+	// takes intervalMu to invalidate the cache. Holding the mutex across
+	// the RPC deadlocks the entire websocket: the notification goroutine
+	// waits on the mutex, so the RPC response behind it is never read.
+	// (An invalidation racing the measurement at worst re-dates a mean
+	// that is one block stale — refreshed on the next 30s expiry.)
 	mean := s.params.TargetTimePerBlock
 	if measured, err := s.measureBlockInterval(); err == nil && measured > 0 {
 		mean = measured
 	}
 
+	s.intervalMu.Lock()
 	s.intervalMean = mean
 	s.intervalAt = time.Now()
+	s.intervalMu.Unlock()
 	return mean
 }
 

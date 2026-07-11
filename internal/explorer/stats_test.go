@@ -135,9 +135,17 @@ func TestSyncingDetection(t *testing.T) {
 type stalledBackend struct {
 	*mockBackend
 	release chan struct{}
+	// started, when non-nil, is signalled as a call enters the stall.
+	started chan struct{}
 }
 
 func (b *stalledBackend) GetBlockCount() (int64, error) {
+	if b.started != nil {
+		select {
+		case b.started <- struct{}{}:
+		default:
+		}
+	}
 	<-b.release
 	return b.mockBackend.GetBlockCount()
 }
@@ -163,5 +171,37 @@ func TestSyncingDoesNotBlockOnStalledNode(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Syncing blocked on a stalled node RPC")
+	}
+}
+
+// OnBlock runs on the rpcclient notification goroutine: if it ever waits
+// behind a lock that an in-flight node RPC holds, the whole websocket
+// deadlocks — the notification goroutine can't drain the connection, so
+// the response the lock-holder is waiting for is never read. This exact
+// cycle froze production via intervalMu (avgBlockInterval measured the
+// block interval over RPC while holding the mutex OnBlock invalidates).
+func TestOnBlockDoesNotBlockBehindIntervalMeasurement(t *testing.T) {
+	m := newMockBackend()
+	installChain(m, 20, 60*time.Second)
+	b := &stalledBackend{
+		mockBackend: m,
+		release:     make(chan struct{}),
+		started:     make(chan struct{}, 1),
+	}
+	defer close(b.release)
+
+	s := newMainnetService(b)
+	go s.avgBlockInterval()
+	<-b.started // measurement is now stalled inside the node RPC
+
+	done := make(chan struct{})
+	go func() {
+		s.OnBlock()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("OnBlock blocked behind an in-flight interval measurement")
 	}
 }
