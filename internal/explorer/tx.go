@@ -139,10 +139,17 @@ type Service struct {
 	intervalAt   time.Time
 	intervalMean time.Duration
 
-	// Cached Syncing() answer (see stats.go).
+	// Cached sync state, refreshed in the background (see stats.go).
+	// Readers never wait on node RPC: btcd stalls its RPC interface for
+	// minutes while flushing the UTXO cache, and one blocked check must
+	// not freeze every gated request behind this mutex.
 	syncMu        sync.Mutex
-	syncCheckedAt time.Time
 	syncing       bool
+	syncTip       int64
+	syncCheckedAt time.Time // last successful check
+	syncAttemptAt time.Time // last completed attempt, including errors
+	syncKickedAt  time.Time // when the in-flight refresh was started
+	syncInFlight  bool
 
 	arrivalsMu sync.Mutex
 	arrivals   []arrival
@@ -163,6 +170,9 @@ func NewService(backend node.Backend, cfg Config) *Service {
 		prevouts: newLRU[prevout](4096),
 		headers:  newLRU[*btcjson.GetBlockHeaderVerboseResult](1024),
 		totals:   newLRU[addressTotals](256),
+		// Until the first check lands, gated networks are assumed to be
+		// syncing: the safe answer while the node's state is unknown.
+		syncing: tipAgeGated(cfg.Params),
 	}
 }
 
