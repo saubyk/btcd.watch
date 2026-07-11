@@ -126,6 +126,11 @@ internal/api       REST handlers, WebSocket hub, embedded-SPA serving
 web/               Vite + React + TypeScript SPA (embedded via web/embed.go)
 ```
 
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup,
+commands, and conventions.
+
 ## License
 
 Released under the [MIT License](LICENSE).
