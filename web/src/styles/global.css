@@ -1888,10 +1888,81 @@ button.bp-tile-item--link:hover {
 }
 
 /* ===== Footer ===== */
+/* ===== Open-source / self-host CTA (round 6) ===== */
+.bp-oss-section {
+  max-width: 1000px;
+  margin: 8px auto 0;
+  padding: 0 22px;
+}
+.bp-oss-card {
+  background: var(--bp-dark);
+  border-radius: 20px;
+  padding: 28px 30px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+  align-items: center;
+}
+.bp-oss-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bp-dark-pill);
+  color: var(--bp-dark-gold);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 11px;
+  border-radius: 999px;
+  margin-bottom: 13px;
+  letter-spacing: 0.02em;
+}
+.bp-oss-card h2 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+  color: #fff;
+  line-height: 1.15;
+}
+.bp-oss-card p {
+  margin: 0;
+  color: var(--bp-dark-body);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+.bp-oss-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bp-oss-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-radius: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.bp-oss-btn--primary {
+  background: var(--bp-orange);
+  color: #fff;
+  padding: 14px 20px;
+  font-size: 14.5px;
+  box-shadow: 0 4px 14px rgba(247, 147, 26, 0.28);
+}
+.bp-oss-btn--ghost {
+  background: none;
+  color: var(--bp-dark-cream);
+  border: 1.5px solid var(--bp-dark-pill);
+  padding: 13px 20px;
+  font-size: 14px;
+}
+
 .bp-footer {
-  padding: 32px 22px;
+  padding: 28px 22px 32px;
   border-top: 1px solid var(--bp-border-3);
-  margin-top: 8px;
+  margin-top: 26px;
 }
 .bp-footer-inner {
   max-width: 1000px;
@@ -1931,6 +2002,12 @@ button.bp-tile-item--link:hover {
 }
 .bp-footer-note strong {
   color: var(--bp-text-label);
+}
+.bp-footer-links {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
 }
 .bp-footer-link {
   display: inline-flex;

@@ -13,6 +13,9 @@ export const appConfig = {
   /** Seconds between stats refreshes on the landing page. */
   statsRefreshSeconds: 30,
   btcdUrl: 'https://github.com/btcsuite/btcd',
+  /** This app's own public repo (round 6 open-source CTA + footer). */
+  repoUrl: 'https://github.com/saubyk/btcd.watch',
+  issuesUrl: 'https://github.com/saubyk/btcd.watch/issues',
 }
 
 /** Example address prefix per network, for the not-found reference card. */

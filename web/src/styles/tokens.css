@@ -20,6 +20,12 @@
   --bp-text-faint-2: #c9b79e;
   --bp-dark-muted: #7e7160;
 
+  /* Dark-panel accents (round 6 open-source CTA) */
+  --bp-dark-pill: #3a3128;
+  --bp-dark-gold: #e6bc6a;
+  --bp-dark-body: #b6a88f;
+  --bp-dark-cream: #e6d9c6;
+
   /* Brand */
   --bp-orange: #f7931a;
   --bp-orange-deep: #e07d05;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useState } from 'react'
 
 import { FeeSlideOver } from './components/FeeSlideOver'
 import { Footer } from './components/Footer'
+import { OpenSourceCta } from './components/OpenSourceCta'
 import { Header } from './components/Header'
 import { ToastProvider } from './components/Toast'
 import { useNetworkData } from './hooks/useNetworkData'
@@ -110,6 +111,7 @@ export function App() {
           onOpenFees={() => setFeeOpen(true)}
         />
         {view}
+        <OpenSourceCta />
         <Footer network={network} />
         <FeeSlideOver
           fees={fees}
