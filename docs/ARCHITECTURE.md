@@ -592,6 +592,7 @@ Config is a YAML file plus `BTCDWATCH_*` environment-variable overrides (env win
 | `node.rpc_host` | `127.0.0.1:18334` | btcd websocket RPC endpoint |
 | `node.rpc_user` / `node.rpc_pass` | — | RPC credentials (env-injected in dev; **never committed**) |
 | `node.rpc_cert` | — | Path to btcd's TLS certificate |
+| `node.rpc_notls` | `false` | Plain-websocket RPC for a btcd running `notls=1` (loopback setups) |
 | `price.source` | `coingecko` | `coingecko` \| `static` |
 | `price.static_usd` | `98000` | Fallback / offline price |
 | `price.refresh_seconds` | `60` | Price cache refresh interval |

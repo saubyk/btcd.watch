@@ -61,6 +61,7 @@ func run() error {
 		User:     cfg.Node.RPCUser,
 		Pass:     cfg.Node.RPCPass,
 		CertPath: cfg.Node.RPCCert,
+		NoTLS:    cfg.Node.RPCNoTLS,
 	})
 	if err != nil {
 		return err

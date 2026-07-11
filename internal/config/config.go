@@ -30,6 +30,9 @@ type Node struct {
 	RPCUser string `yaml:"rpc_user"`
 	RPCPass string `yaml:"rpc_pass"`
 	RPCCert string `yaml:"rpc_cert"`
+	// RPCNoTLS matches a btcd running notls=1 (plaintext RPC on
+	// loopback); rpc_cert is ignored when set.
+	RPCNoTLS bool `yaml:"rpc_notls"`
 }
 
 type Price struct {
@@ -118,6 +121,18 @@ func applyEnv(cfg *Config) error {
 	}
 
 	var err error
+	boolean := func(key string, dst *bool) {
+		v, ok := os.LookupEnv(key)
+		if !ok {
+			return
+		}
+		b, perr := strconv.ParseBool(v)
+		if perr != nil && err == nil {
+			err = fmt.Errorf("%s: invalid boolean %q", key, v)
+			return
+		}
+		*dst = b
+	}
 	num := func(key string, set func(float64)) {
 		v, ok := os.LookupEnv(key)
 		if !ok {
@@ -138,6 +153,7 @@ func applyEnv(cfg *Config) error {
 	str("BTCDWATCH_RPC_USER", &cfg.Node.RPCUser)
 	str("BTCDWATCH_RPC_PASS", &cfg.Node.RPCPass)
 	str("BTCDWATCH_RPC_CERT", &cfg.Node.RPCCert)
+	boolean("BTCDWATCH_RPC_NOTLS", &cfg.Node.RPCNoTLS)
 	str("BTCDWATCH_PRICE_SOURCE", &cfg.Price.Source)
 
 	num("BTCDWATCH_PRICE_STATIC_USD", func(f float64) { cfg.Price.StaticUSD = f })

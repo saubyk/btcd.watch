@@ -73,6 +73,7 @@ config containing credentials** (`config.yaml` is gitignored).
 | `node.rpc_host` | `BTCDWATCH_RPC_HOST` | `127.0.0.1:18334` |
 | `node.rpc_user` / `node.rpc_pass` | `BTCDWATCH_RPC_USER` / `_PASS` | — (required) |
 | `node.rpc_cert` | `BTCDWATCH_RPC_CERT` | — |
+| `node.rpc_notls` | `BTCDWATCH_RPC_NOTLS` | `false` (set for btcd `notls=1`) |
 | `price.source` (`coingecko`\|`static`) | `BTCDWATCH_PRICE_SOURCE` | `coingecko` |
 | `price.static_usd` | `BTCDWATCH_PRICE_STATIC_USD` | `98000` |
 | `price.refresh_seconds` | `BTCDWATCH_PRICE_REFRESH_SECONDS` | `60` |

@@ -61,6 +61,9 @@ type Config struct {
 	User     string
 	Pass     string
 	CertPath string
+	// NoTLS connects over plain websocket, matching a btcd running with
+	// notls=1 (loopback-only setups). CertPath is ignored when set.
+	NoTLS bool
 }
 
 // Client implements Backend over a websocket rpcclient connection.
@@ -90,7 +93,7 @@ type Client struct {
 // ErrUnavailable until the connection is established.
 func New(cfg Config) (*Client, error) {
 	var certs []byte
-	if cfg.CertPath != "" {
+	if !cfg.NoTLS && cfg.CertPath != "" {
 		var err error
 		certs, err = os.ReadFile(cfg.CertPath)
 		if err != nil {
@@ -104,6 +107,7 @@ func New(cfg Config) (*Client, error) {
 		User:                cfg.User,
 		Pass:                cfg.Pass,
 		Certificates:        certs,
+		DisableTLS:          cfg.NoTLS,
 		DisableConnectOnNew: true,
 	}
 

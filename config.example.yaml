@@ -32,6 +32,9 @@ node:
   rpc_pass: CHANGE_ME
   # Path to btcd's TLS certificate.
   rpc_cert: /path/to/btcd/rpc.cert
+  # Set true if btcd runs notls=1 (plaintext RPC on loopback); rpc_cert is
+  # then ignored.
+  rpc_notls: false
 
 price:
   # coingecko | static
