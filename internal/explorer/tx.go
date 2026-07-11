@@ -139,6 +139,11 @@ type Service struct {
 	intervalAt   time.Time
 	intervalMean time.Duration
 
+	// Cached Syncing() answer (see stats.go).
+	syncMu        sync.Mutex
+	syncCheckedAt time.Time
+	syncing       bool
+
 	arrivalsMu sync.Mutex
 	arrivals   []arrival
 }

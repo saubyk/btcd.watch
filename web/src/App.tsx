@@ -36,6 +36,10 @@ export function App() {
   }, [])
 
   const network = data.stats?.network ?? null
+  // During initial block download the mempool is empty, so fee numbers
+  // are just the configured floors — hide the ticker rather than mislead.
+  const syncing = data.stats?.syncing ?? false
+  const fees = syncing ? null : data.fees
 
   const view = (() => {
     switch (state.view) {
@@ -66,7 +70,7 @@ export function App() {
         return state.tx ? (
           <PendingTx
             tx={state.tx}
-            fees={data.fees}
+            fees={fees}
             stats={data.stats}
             watching={state.watching}
             dispatch={dispatch}
@@ -101,14 +105,14 @@ export function App() {
     <ToastProvider>
       <div className="bp-app">
         <Header
-          fees={data.fees}
+          fees={fees}
           onHome={goHome}
           onOpenFees={() => setFeeOpen(true)}
         />
         {view}
         <Footer network={network} />
         <FeeSlideOver
-          fees={data.fees}
+          fees={fees}
           open={feeOpen}
           onClose={() => setFeeOpen(false)}
         />

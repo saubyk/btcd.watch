@@ -604,6 +604,13 @@ Config is a YAML file plus `BTCDWATCH_*` environment-variable overrides (env win
 | `server.max_ws_clients` | `0` (unlimited) | WebSocket connection cap |
 | `address.max_concurrent_scans` | `0` (unlimited) | Simultaneous address-history scans |
 
+**Sync gating**: while the node's best-block timestamp lags the wall clock by more than four
+hours (btcd reports neither `initialblockdownload` nor a real `headers` count, so tip age is the
+signal), the service reports `syncing: true` in `/api/stats` and healthz (`status: "syncing"`,
+still 200), and the lookup endpoints (search/tx/address/block) return `503 node_syncing` — the
+indexes only cover the synced portion of the chain. The UI mirrors this by hiding search and the
+dashboard. Disabled on regtest/simnet, where blocks exist only on demand.
+
 **Public exposure**: the hardening knobs above default to off, matching the localhost origin of
 the project. A deployment that faces the internet must set them all; the API layer additionally
 sends security headers (CSP, nosniff, frame-ancestors) and cache headers (short public TTLs for

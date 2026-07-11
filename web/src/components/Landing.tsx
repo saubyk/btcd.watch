@@ -28,6 +28,15 @@ export function LiveStatusPill({
       </div>
     )
   }
+  if (stats.syncing) {
+    return (
+      <div className="bp-live-pill">
+        <span className="bp-live-dot bp-live-dot--off bp-pulse-slow" />
+        Node is syncing the blockchain — at block{' '}
+        {formatNumber(stats.blockHeight)} so far
+      </div>
+    )
+  }
   return (
     <div className="bp-live-pill">
       <span className="bp-live-dot" />

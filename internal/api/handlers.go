@@ -60,6 +60,20 @@ func writeScanBusy(w http.ResponseWriter) {
 		"too many address lookups in flight — try again shortly")
 }
 
+// gateSyncing rejects lookups while the node is still catching up: the
+// indexes only cover the synced portion of the chain, so answers would be
+// missing or misleading. Stats/fees stay up so the UI can show the
+// syncing state. Returns true when the request was rejected.
+func (s *Server) gateSyncing(w http.ResponseWriter) bool {
+	if !s.svc.Syncing() {
+		return false
+	}
+	writeError(w, http.StatusServiceUnavailable, "node_syncing",
+		"the node is still syncing the blockchain — lookups will work "+
+			"once it catches up")
+	return true
+}
+
 type errorBody struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -97,6 +111,7 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		Status        string `json:"status"`
 		Network       string `json:"network"`
 		NodeConnected bool   `json:"nodeConnected"`
+		Syncing       bool   `json:"syncing,omitempty"`
 		BlockHeight   int64  `json:"blockHeight,omitempty"`
 	}
 
@@ -109,15 +124,26 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Syncing is 200, not 503: the service itself is healthy and the UI
+	// shows the state — an uptime monitor shouldn't page over IBD.
+	status := "ok"
+	syncing := s.svc.Syncing()
+	if syncing {
+		status = "syncing"
+	}
 	writeJSON(w, http.StatusOK, health{
-		Status:        "ok",
+		Status:        status,
 		Network:       s.network,
 		NodeConnected: true,
+		Syncing:       syncing,
 		BlockHeight:   height,
 	})
 }
 
 func (s *Server) handleTx(w http.ResponseWriter, r *http.Request) {
+	if s.gateSyncing(w) {
+		return
+	}
 	query := chain.ClassifyQuery(r.PathValue("txid"), s.params)
 	if query.Kind != chain.QueryHex {
 		writeError(w, http.StatusBadRequest, "invalid_txid",
@@ -151,6 +177,9 @@ const (
 )
 
 func (s *Server) handleAddress(w http.ResponseWriter, r *http.Request) {
+	if s.gateSyncing(w) {
+		return
+	}
 	query := chain.ClassifyQuery(r.PathValue("addr"), s.params)
 	if query.Kind != chain.QueryAddress {
 		writeError(w, http.StatusBadRequest, "invalid_address",
@@ -212,6 +241,9 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 const defaultBlockTxLimit = 25
 
 func (s *Server) handleBlock(w http.ResponseWriter, r *http.Request) {
+	if s.gateSyncing(w) {
+		return
+	}
 	offset := intParam(r, "offset", 0, 0, 1<<30)
 	limit := intParam(r, "limit", defaultBlockTxLimit, 1, maxActivityLimit)
 
@@ -243,6 +275,9 @@ func (s *Server) handleBlock(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
+	if s.gateSyncing(w) {
+		return
+	}
 	q := r.URL.Query().Get("q")
 
 	query := chain.ClassifyQuery(q, s.params)

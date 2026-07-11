@@ -15,6 +15,11 @@ export function Landing({
   data: NetworkData
   onSearch: (q: string) => void
 }) {
+  // While the node is unreachable or still syncing, lookups can't be
+  // answered (the API gates them too) — the pill explains the state and
+  // the search/stats/mempool features stay hidden.
+  const ready = data.stats != null && !data.stats.syncing
+
   return (
     <main className="bp-view">
       <section className="bp-hero">
@@ -28,12 +33,12 @@ export function Landing({
           Paste a transaction ID or wallet address. We'll tell you what's
           happening — in plain English.
         </p>
-        <SearchBar onSearch={onSearch} />
+        {ready && <SearchBar onSearch={onSearch} />}
       </section>
 
       {/* Round 4: high-level stats first, then the detailed queue. */}
-      {appConfig.showStats && <StatsBar stats={data.stats} />}
-      {appConfig.showMempool && (
+      {ready && appConfig.showStats && <StatsBar stats={data.stats} />}
+      {ready && appConfig.showMempool && (
         <MempoolQueue
           stats={data.stats}
           mempool={data.mempool}
