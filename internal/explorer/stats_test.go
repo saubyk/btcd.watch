@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcjson"
+	"github.com/btcsuite/btcd/chaincfg/v2"
 )
 
 // installChain builds tip headers with the given spacing so the interval
@@ -63,5 +64,50 @@ func TestStats(t *testing.T) {
 	}
 	if stats.Price == nil || stats.Price.USD != 100_000 || stats.Price.Source != "static" {
 		t.Errorf("price = %+v", stats.Price)
+	}
+	if stats.Syncing {
+		t.Error("syncing = true on regtest (detector must be off)")
+	}
+}
+
+// backdate shifts every header timestamp into the past, simulating a node
+// whose tip is far behind the wall clock (IBD).
+func backdate(m *mockBackend, age time.Duration) {
+	for _, h := range m.headers {
+		h.Time -= int64(age.Seconds())
+	}
+}
+
+func newMainnetService(m *mockBackend) *Service {
+	return NewService(m, Config{
+		Params: &chaincfg.MainNetParams,
+		Price:  func() PriceQuote { return PriceQuote{} },
+		Floors: FeeFloors{Slow: 1, Standard: 2, Urgent: 5},
+	})
+}
+
+func TestSyncingDetection(t *testing.T) {
+	// Mainnet tip a day behind the clock → syncing.
+	m := newMockBackend()
+	installChain(m, 20, 60*time.Second)
+	backdate(m, 24*time.Hour)
+	if !newMainnetService(m).Syncing() {
+		t.Error("stale mainnet tip not detected as syncing")
+	}
+
+	// Fresh mainnet tip → synced.
+	m2 := newMockBackend()
+	installChain(m2, 20, 60*time.Second)
+	if newMainnetService(m2).Syncing() {
+		t.Error("fresh mainnet tip reported as syncing")
+	}
+
+	// Regtest with an old tip → never syncing (blocks exist on demand;
+	// a paused dev harness is not IBD).
+	m3 := newMockBackend()
+	installChain(m3, 20, 60*time.Second)
+	backdate(m3, 24*time.Hour)
+	if newTestService(m3).Syncing() {
+		t.Error("regtest reported as syncing")
 	}
 }

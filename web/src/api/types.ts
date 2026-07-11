@@ -162,6 +162,8 @@ export interface BlockFlash {
 export interface Stats {
   network: string
   blockHeight: number
+  /** Node still in initial block download — lookups are gated off. */
+  syncing: boolean
   mempool: { txCount: number; bytes: number }
   queue: Queue | null
   nextBlockEtaSeconds: number
