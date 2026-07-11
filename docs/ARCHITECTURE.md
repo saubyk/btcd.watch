@@ -342,9 +342,13 @@ spread over the block's non-coinbase vsize (`(weight+3)/4` minus the coinbase's)
 
 ### `GET /api/healthz`
 
-`200 {"status":"ok","network":"regtest","nodeConnected":true,"blockHeight":512}` — or `503` with
-`nodeConnected:false` while btcd is unreachable (the server starts and stays up even if the node
-is down; see §5).
+`200 {"status":"ok","network":"regtest","nodeConnected":true,"blockHeight":512}` — or `503
+"degraded"` with `nodeConnected:false` while btcd is unreachable (the server starts and stays up
+even if the node is down; see §5). Healthz is served entirely from the cached sync state — it
+never issues a node RPC on the request path, because btcd blocks RPC calls for minutes while
+flushing its UTXO cache and a health check must answer instantly regardless. If the node stays
+connected but hasn't answered the background probe in 15 minutes, healthz reports `503
+"degraded"` with `nodeConnected:true` and the last known height.
 
 ---
 
@@ -609,7 +613,11 @@ hours (btcd reports neither `initialblockdownload` nor a real `headers` count, s
 signal), the service reports `syncing: true` in `/api/stats` and healthz (`status: "syncing"`,
 still 200), and the lookup endpoints (search/tx/address/block) return `503 node_syncing` — the
 indexes only cover the synced portion of the chain. The UI mirrors this by hiding search and the
-dashboard. Disabled on regtest/simnet, where blocks exist only on demand.
+dashboard. Disabled on regtest/simnet, where blocks exist only on demand. The check runs as a
+**background single-flight refresh** (every 10s while read; a fresh attempt may start alongside
+one wedged for 2+ minutes): readers always get the cached answer instantly, so a btcd stalled
+mid-flush can never freeze healthz or the gated endpoints behind the sync check. Until the first
+check completes, gated networks are assumed syncing — the safe answer while state is unknown.
 
 **Public exposure**: the hardening knobs above default to off, matching the localhost origin of
 the project. A deployment that faces the internet must set them all; the API layer additionally

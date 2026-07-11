@@ -6,6 +6,8 @@ import (
 
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg/v2"
+
+	"btcdwatch.com/internal/node"
 )
 
 // installChain builds tip headers with the given spacing so the interval
@@ -78,7 +80,7 @@ func backdate(m *mockBackend, age time.Duration) {
 	}
 }
 
-func newMainnetService(m *mockBackend) *Service {
+func newMainnetService(m node.Backend) *Service {
 	return NewService(m, Config{
 		Params: &chaincfg.MainNetParams,
 		Price:  func() PriceQuote { return PriceQuote{} },
@@ -86,20 +88,34 @@ func newMainnetService(m *mockBackend) *Service {
 	})
 }
 
+// The detection tests drive refreshSync directly: in production it runs
+// in a background goroutine and readers only ever see the cached answer.
 func TestSyncingDetection(t *testing.T) {
-	// Mainnet tip a day behind the clock → syncing.
+	// Mainnet tip a day behind the clock → syncing. Also the assumed
+	// state before the first check completes.
 	m := newMockBackend()
 	installChain(m, 20, 60*time.Second)
 	backdate(m, 24*time.Hour)
-	if !newMainnetService(m).Syncing() {
+	s := newMainnetService(m)
+	if !s.syncing {
+		t.Error("mainnet service must start out assumed syncing")
+	}
+	s.refreshSync()
+	if !s.Syncing() {
 		t.Error("stale mainnet tip not detected as syncing")
 	}
 
 	// Fresh mainnet tip → synced.
 	m2 := newMockBackend()
 	installChain(m2, 20, 60*time.Second)
-	if newMainnetService(m2).Syncing() {
+	s2 := newMainnetService(m2)
+	s2.refreshSync()
+	if s2.Syncing() {
 		t.Error("fresh mainnet tip reported as syncing")
+	}
+	st := s2.SyncStatus()
+	if st.TipHeight != 20 || st.CheckedAt.IsZero() {
+		t.Errorf("sync status = %+v, want tip 20 and non-zero CheckedAt", st)
 	}
 
 	// Regtest with an old tip → never syncing (blocks exist on demand;
@@ -107,7 +123,45 @@ func TestSyncingDetection(t *testing.T) {
 	m3 := newMockBackend()
 	installChain(m3, 20, 60*time.Second)
 	backdate(m3, 24*time.Hour)
-	if newTestService(m3).Syncing() {
+	s3 := newTestService(m3)
+	s3.refreshSync()
+	if s3.Syncing() {
 		t.Error("regtest reported as syncing")
+	}
+}
+
+// stalledBackend simulates btcd blocking RPC mid-flush: GetBlockCount
+// hangs until release is closed.
+type stalledBackend struct {
+	*mockBackend
+	release chan struct{}
+}
+
+func (b *stalledBackend) GetBlockCount() (int64, error) {
+	<-b.release
+	return b.mockBackend.GetBlockCount()
+}
+
+// Syncing must serve the cached answer instantly even when the node has
+// stopped answering RPC — btcd stalls calls for minutes while flushing
+// its UTXO cache, and one stuck probe froze the whole site behind syncMu
+// before the check moved off the request path.
+func TestSyncingDoesNotBlockOnStalledNode(t *testing.T) {
+	m := newMockBackend()
+	installChain(m, 20, 60*time.Second)
+	b := &stalledBackend{mockBackend: m, release: make(chan struct{})}
+	defer close(b.release)
+
+	s := newMainnetService(b)
+	done := make(chan bool, 1)
+	go func() { done <- s.Syncing() }()
+
+	select {
+	case v := <-done:
+		if !v {
+			t.Error("want assumed syncing=true while the first check is stuck")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Syncing blocked on a stalled node RPC")
 	}
 }

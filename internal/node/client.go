@@ -213,6 +213,13 @@ func (c *Client) available() error {
 	return nil
 }
 
+// Connected reports whether the websocket session to btcd is up with
+// notifications registered. It says nothing about RPC responsiveness —
+// btcd can stall calls for minutes while flushing its UTXO cache.
+func (c *Client) Connected() bool {
+	return c.available() == nil
+}
+
 func (c *Client) GetRawTransactionVerbose(txHash *chainhash.Hash) (*btcjson.TxRawResult, error) {
 	if err := c.available(); err != nil {
 		return nil, err

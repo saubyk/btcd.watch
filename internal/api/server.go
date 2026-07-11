@@ -3,6 +3,7 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/btcsuite/btcd/chaincfg/v2"
 
@@ -20,6 +21,9 @@ type Server struct {
 	// addrSem bounds concurrent address scans (nil = unlimited); see
 	// acquireScan.
 	addrSem chan struct{}
+	// started anchors healthz's staleness window before the first
+	// successful sync probe (see handleHealthz).
+	started time.Time
 }
 
 // Options are the public-exposure knobs. The zero value disables them all,
@@ -52,6 +56,7 @@ func New(svc *explorer.Service, backend node.Backend,
 		params:  params,
 		network: network,
 		hub:     hub,
+		started: time.Now(),
 	}
 	if opts.MaxConcurrentScans > 0 {
 		s.addrSem = make(chan struct{}, opts.MaxConcurrentScans)

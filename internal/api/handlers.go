@@ -106,6 +106,13 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		"internal error")
 }
 
+// healthMaxStale is how long the node may go without answering the sync
+// probe before healthz reports degraded. Generous because btcd routinely
+// stalls RPC for minutes during UTXO cache flushes — a hiccup that long
+// shouldn't page anyone, but a node that has been mute for this long is a
+// real outage.
+const healthMaxStale = 15 * time.Minute
+
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	type health struct {
 		Status        string `json:"status"`
@@ -115,28 +122,52 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 		BlockHeight   int64  `json:"blockHeight,omitempty"`
 	}
 
-	height, err := s.backend.GetBlockCount()
-	if err != nil {
+	// Served entirely from cached state — healthz must answer instantly
+	// even while btcd stalls its RPC interface (UTXO cache flushes block
+	// calls for minutes, long past Cloudflare's 100s origin timeout).
+	st := s.svc.SyncStatus()
+
+	connected := true
+	if c, ok := s.backend.(interface{ Connected() bool }); ok {
+		connected = c.Connected()
+	}
+	if !connected {
 		writeJSON(w, http.StatusServiceUnavailable, health{
-			Status:        "degraded",
-			Network:       s.network,
-			NodeConnected: false,
+			Status:  "degraded",
+			Network: s.network,
 		})
 		return
 	}
+
+	// Connected but the node hasn't answered a probe in a long while:
+	// the RPC interface is wedged. Before the first success the window
+	// is anchored at process start so a fresh deploy isn't degraded.
+	last := st.CheckedAt
+	if last.IsZero() {
+		last = s.started
+	}
+	if time.Since(last) > healthMaxStale {
+		writeJSON(w, http.StatusServiceUnavailable, health{
+			Status:        "degraded",
+			Network:       s.network,
+			NodeConnected: true,
+			BlockHeight:   st.TipHeight,
+		})
+		return
+	}
+
 	// Syncing is 200, not 503: the service itself is healthy and the UI
 	// shows the state — an uptime monitor shouldn't page over IBD.
 	status := "ok"
-	syncing := s.svc.Syncing()
-	if syncing {
+	if st.Syncing {
 		status = "syncing"
 	}
 	writeJSON(w, http.StatusOK, health{
 		Status:        status,
 		Network:       s.network,
 		NodeConnected: true,
-		Syncing:       syncing,
-		BlockHeight:   height,
+		Syncing:       st.Syncing,
+		BlockHeight:   st.TipHeight,
 	})
 }
 
