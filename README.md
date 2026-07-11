@@ -97,17 +97,23 @@ Go tests run against a mocked node backend with btcjson fixtures — no
 running node needed. The WebSocket hub suite runs under the race detector
 in CI-style usage: `go test ./... -race`.
 
-### End-to-end recipe (regtest harness)
+### End-to-end recipe (regtest)
 
-1. Start the harness (`start-network.sh`, with `miner.sh`/`txgen.sh`
-   churning) and `./scripts/dev.sh` + Vite (or the single binary).
-2. Take a fresh txid from txgen → the pending view shows your place in the
-   mempool queue and the estimated wait.
+This exercises the live flows against a regtest node that is actively
+producing traffic. It needs an **external** harness — the `btc-regtest-env`
+used in development, or any equivalent that mines blocks and generates
+transactions on a loop. Those harness scripts are not part of this
+repository.
+
+1. Start your regtest node with a miner and a transaction generator running,
+   then launch the app with `./scripts/dev.sh` + Vite (or the single binary).
+2. Take a fresh txid from the generated traffic → the pending view shows your
+   place in the mempool queue and the estimated wait.
 3. Press **🔔 Watch this transaction** → the panel shows it is live-connected;
    on the next mined block the view flips to **Confirmed** with the 🎉
    banner — no refresh.
-4. Search an address from the churn → balance, totals, and activity grow as
-   the generator keeps running.
+4. Search an address that appears in the traffic → balance, totals, and
+   activity grow as the generator keeps running.
 5. Search a block height (or click **In block** on a confirmed tx) → the
    block view lists its transactions, coinbase first with a `miner reward`
    badge; prev/next buttons walk the chain.
