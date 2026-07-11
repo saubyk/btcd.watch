@@ -4,9 +4,7 @@ btcdwatch.com is a beginner-friendly Bitcoin transaction and address explorer th
 question well: **"is my Bitcoin confirmed?"** It is backed by a locally operated
 [btcd](https://github.com/btcsuite/btcd) full node rather than a third-party API.
 
-This document is the authoritative technical design. The companion
-[`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) describes how the system is built and
-verified milestone by milestone.
+This document is the authoritative technical design.
 
 ---
 
@@ -88,7 +86,7 @@ Key structural points:
 
 | Mode | Topology |
 | --- | --- |
-| **Development** | Two processes: `btcdwatchd` serving the API on `127.0.0.1:8480`, and Vite dev server on `:5173` proxying `/api` (including WebSocket upgrade) to the Go server. Hot reload on both sides. |
+| **Development** | Two processes: `btcdwatchd` serving the API on `127.0.0.1:8480`, and Vite dev server on `:5174` proxying `/api` (including WebSocket upgrade) to the Go server. Hot reload on both sides. |
 | **Production** | One binary. `make build` runs `npm run build` then `go build`; the Vite `dist/` output is embedded via `go:embed` and served with an SPA fallback (any non-`/api/*` path returns `index.html`). A `--static-dir` flag can override the embedded assets for on-disk serving. |
 
 ---
@@ -618,7 +616,7 @@ repo, ever.
 
 ```
 btcdwatchd (Go)  → 127.0.0.1:8480   (REST + WS, talks to btcd)
-vite dev server  → 127.0.0.1:5173   (SPA with HMR)
+vite dev server  → 127.0.0.1:5174   (SPA with HMR)
    vite.config.ts proxy: { '/api': { target: 'http://127.0.0.1:8480', ws: true } }
 ```
 

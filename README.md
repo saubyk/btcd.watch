@@ -18,7 +18,6 @@ and BTC price — with a fee ticker in the header that opens the fee helper
 from any view.
 
 - **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- **Milestone plan**: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)
 
 ## Requirements
 
@@ -126,3 +125,7 @@ internal/price     BTC/USD quote (CoinGecko + static fallback)
 internal/api       REST handlers, WebSocket hub, embedded-SPA serving
 web/               Vite + React + TypeScript SPA (embedded via web/embed.go)
 ```
+
+## License
+
+Released under the [MIT License](LICENSE).
