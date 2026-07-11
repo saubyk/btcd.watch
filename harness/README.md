@@ -33,6 +33,11 @@ First start takes a minute (it builds btcd and pulls Bitcoin Core, then mines
 101 blocks to mature the miner's coinbase). After that you'll see blocks and
 transactions streaming in `make regtest-logs`.
 
+Once btcdwatch is running against it (below), `bash harness/scripts/verify.sh`
+is a read-only smoke test that hits the API and prints the height, mempool,
+a live pending tx (with its RBF flag + fee rate), the tip block, and a txgen
+address's balance and activity.
+
 ## Point btcdwatch at it
 
 btcd's RPC is published on `127.0.0.1:18334` and its self-signed cert is written
