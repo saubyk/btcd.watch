@@ -1,5 +1,5 @@
 [Unit]
-Description=btcd (mainnet, txindex+addrindex) — btcdwatch.com backend node
+Description=btcd (mainnet, txindex+addrindex) — btcd.watch backend node
 After=network-online.target
 Wants=network-online.target
 

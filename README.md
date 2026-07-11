@@ -1,4 +1,4 @@
-# btcdwatch.com
+# btcd.watch
 
 A beginner-friendly Bitcoin transaction & address explorer that answers one
 question well: **"is my Bitcoin confirmed?"** — powered entirely by your own

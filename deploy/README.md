@@ -1,4 +1,4 @@
-# Deploying btcdwatch.com
+# Deploying btcd.watch
 
 Runbook for the public single-box deployment: **btcd (mainnet) + btcdwatchd +
 Caddy** on one server, Cloudflare in front. Everything here is manual and
@@ -89,7 +89,7 @@ sudo systemctl reload caddy
 ## 5. Cloudflare + firewall
 
 1. Point the domain's nameservers at Cloudflare (registration stays put);
-   create an A record for `btcdwatch.com` (+ `www`) to the server IP,
+   create an A record for `btcd.watch` (+ `www`) to the server IP,
    **proxied** (orange cloud).
 2. SSL/TLS mode: **Full (strict)**. Enable WebSockets (Network tab).
 3. Firewall — the whole point of the proxy is that nobody talks to the
@@ -116,7 +116,7 @@ empty `trusted_proxy_header`, or rate limiting can be spoofed.
 ## 6. Verify
 
 ```sh
-curl -s https://btcdwatch.com/api/healthz
+curl -s https://btcd.watch/api/healthz
 # {"status":"ok","network":"mainnet","nodeConnected":true,"blockHeight":...}
 ```
 
@@ -128,7 +128,7 @@ mempool queue moves and Watch mode connects (WS through Cloudflare).
 
 - **Upgrades**: tag a release on GitHub → `./deploy/upgrade.sh <tag>`.
 - **Monitoring**: point an uptime monitor (e.g. UptimeRobot) at
-  `https://btcdwatch.com/api/healthz` — it returns 503 whenever the node
+  `https://btcd.watch/api/healthz` — it returns 503 whenever the node
   connection is down, so one check covers both services. Watch disk on
   `/var/lib/btcd` (chain + indexes grow steadily) and set an alert at 85%.
 - **Logs**: `journalctl -fu btcdwatchd`, `journalctl -fu btcd`.

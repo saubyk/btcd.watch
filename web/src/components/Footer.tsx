@@ -6,7 +6,7 @@ export function Footer({ network }: { network: string | null }) {
       <div className="bp-footer-inner">
         <div className="bp-footer-brand">
           <span className="bp-footer-mark">₿</span>
-          <span className="bp-footer-name">btcdwatch.com</span>
+          <span className="bp-footer-name">btcd.watch</span>
           <span className="bp-footer-note">
             — powered by your own <strong>btcd</strong> node
           </span>

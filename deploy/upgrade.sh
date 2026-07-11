@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tag-based production upgrade for btcdwatch.com.
+# Tag-based production upgrade for btcd.watch.
 #
 #   ./deploy/upgrade.sh v1.2.0        # deploy a tag
 #   ./deploy/upgrade.sh --rollback    # restore the previous binary

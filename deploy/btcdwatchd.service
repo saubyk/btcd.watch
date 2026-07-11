@@ -1,5 +1,5 @@
 [Unit]
-Description=btcdwatchd — btcdwatch.com explorer (API + embedded SPA)
+Description=btcdwatchd — btcd.watch explorer (API + embedded SPA)
 After=network-online.target btcd.service
 Wants=network-online.target
 # Requires= is deliberately absent: btcdwatchd degrades gracefully when the

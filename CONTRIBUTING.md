@@ -1,6 +1,6 @@
-# Contributing to btcdwatch.com
+# Contributing to btcd.watch
 
-Thanks for your interest in improving btcdwatch.com! This project is a
+Thanks for your interest in improving btcd.watch! This project is a
 beginner-friendly Bitcoin explorer backed by your own [btcd](https://github.com/btcsuite/btcd)
 node. Contributions of all sizes are welcome — bug fixes, features, docs, and
 tests.

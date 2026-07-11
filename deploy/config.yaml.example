@@ -1,4 +1,4 @@
-# Production btcdwatch.com configuration — install at
+# Production btcd.watch configuration — install at
 # /etc/btcdwatch/config.yaml, chmod 640, owned root:btcdwatch.
 # Fill in the RPC credentials from /etc/btcd/btcd.conf; nothing else
 # should need editing.

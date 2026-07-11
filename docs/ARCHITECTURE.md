@@ -1,6 +1,6 @@
-# btcdwatch.com — System Architecture
+# btcd.watch — System Architecture
 
-btcdwatch.com is a beginner-friendly Bitcoin transaction and address explorer that answers one
+btcd.watch is a beginner-friendly Bitcoin transaction and address explorer that answers one
 question well: **"is my Bitcoin confirmed?"** It is backed by a locally operated
 [btcd](https://github.com/btcsuite/btcd) full node rather than a third-party API.
 
