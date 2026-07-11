@@ -18,6 +18,12 @@ const snapshotMaxAge = 5 * time.Second
 // read would defeat the point of sharing it.
 const snapshotMinAge = time.Second
 
+// fetchStuck is how long an in-flight mempool fetch may run before
+// another caller may fetch alongside it. A getrawmempoolverbose stranded
+// by a node stall or a websocket reconnect must never freeze the snapshot
+// forever (same watchdog idea as the sync and live-cache refreshes).
+const fetchStuck = 2 * time.Minute
+
 // Peak tracking: the queue bar's "capacity track" is the rolling recent
 // peak of mempool vbytes, kept as a max per bucket over the last hour.
 const (
@@ -50,7 +56,13 @@ type Mempool struct {
 	mu      sync.Mutex
 	fetched time.Time
 	dirty   bool
-	entries map[string]MempoolEntry
+	// gen advances on every invalidation; an install only marks the
+	// snapshot clean when nothing changed while the fetch was in flight.
+	gen uint64
+	// fetching/fetchStarted single-flight the (lock-free) RPC fetch.
+	fetching     bool
+	fetchStarted time.Time
+	entries      map[string]MempoolEntry
 	// queue is the fee-band histogram derived from entries, computed at
 	// most once per refresh (a pure function of the snapshot).
 	queue *Queue
@@ -66,12 +78,11 @@ func NewMempool(backend node.Backend) *Mempool {
 // cached copy is older than snapshotMaxAge. The returned map is shared —
 // callers must not mutate it.
 func (m *Mempool) Snapshot() (map[string]MempoolEntry, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if err := m.refreshLocked(); err != nil {
+	if err := m.refresh(); err != nil {
 		return nil, err
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.entries, nil
 }
 
@@ -87,12 +98,11 @@ func (m *Mempool) Queue() (*Queue, error) {
 // locked read, so callers joining per-tx data against the queue see a
 // single consistent snapshot.
 func (m *Mempool) SnapshotAndQueue() (map[string]MempoolEntry, *Queue, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if err := m.refreshLocked(); err != nil {
+	if err := m.refresh(); err != nil {
 		return nil, nil, err
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.queue == nil {
 		m.queue = queueFromSnapshot(m.entries)
 		m.queue.PeakVBytes = m.notePeakLocked(m.queue.TotalVBytes)
@@ -126,21 +136,39 @@ func (m *Mempool) notePeakLocked(total int64) int64 {
 	return peak
 }
 
-// refreshLocked refetches the mempool when the cached copy is stale; the
-// caller must hold m.mu.
-func (m *Mempool) refreshLocked() error {
+// refresh refetches the mempool when the cached copy is stale. The RPC
+// runs with NO lock held: btcd can stall getrawmempoolverbose for minutes
+// (UTXO cache flushes), and a stranded call must never wedge every future
+// reader behind m.mu. While a fetch is in flight, other readers serve the
+// stale copy; only a cold start (no snapshot yet) or a fetch stuck past
+// fetchStuck fetches alongside it.
+func (m *Mempool) refresh() error {
+	m.mu.Lock()
 	age := time.Since(m.fetched)
 	fresh := m.entries != nil && age < snapshotMaxAge &&
 		!(m.dirty && age >= snapshotMinAge)
 	if fresh {
+		m.mu.Unlock()
 		return nil
 	}
+	if m.fetching && time.Since(m.fetchStarted) < fetchStuck &&
+		m.entries != nil {
+
+		m.mu.Unlock()
+		return nil
+	}
+	m.fetching = true
+	m.fetchStarted = time.Now()
+	gen := m.gen
+	m.mu.Unlock()
 
 	raw, err := m.backend.GetRawMempoolVerbose()
 	if err != nil {
+		m.mu.Lock()
+		m.fetching = false
+		m.mu.Unlock()
 		return err
 	}
-	m.dirty = false
 
 	entries := make(map[string]MempoolEntry, len(raw))
 	for txid, e := range raw {
@@ -164,9 +192,18 @@ func (m *Mempool) refreshLocked() error {
 		entries[txid] = entry
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.fetching = false
 	m.entries = entries
 	m.queue = nil
 	m.fetched = time.Now()
+	if m.gen == gen {
+		// Nothing invalidated the snapshot while we fetched; a block or
+		// tx that landed mid-fetch keeps it dirty so the next read (past
+		// the throttle) refetches.
+		m.dirty = false
+	}
 	return nil
 }
 
@@ -176,6 +213,8 @@ func (m *Mempool) Invalidate() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.fetched = time.Time{}
+	m.dirty = true
+	m.gen++
 }
 
 // MarkDirty requests a refresh on the next read (throttled to
@@ -184,4 +223,5 @@ func (m *Mempool) MarkDirty() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.dirty = true
+	m.gen++
 }
