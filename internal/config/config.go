@@ -14,6 +14,14 @@ import (
 
 type Server struct {
 	Listen string `yaml:"listen"`
+
+	// Public-exposure hardening; every field's zero value disables it,
+	// which is right for localhost use. Set all of them when the server
+	// faces the internet — see config.example.yaml.
+	RateLimitPerMin    int    `yaml:"rate_limit_per_min"`
+	RateLimitBurst     int    `yaml:"rate_limit_burst"`
+	TrustedProxyHeader string `yaml:"trusted_proxy_header"`
+	MaxWSClients       int    `yaml:"max_ws_clients"`
 }
 
 type Node struct {
@@ -38,6 +46,9 @@ type Fees struct {
 
 type Address struct {
 	MaxScanTxs int `yaml:"max_scan_txs"`
+	// MaxConcurrentScans bounds simultaneous address history scans
+	// (0 = unlimited) — the most node-expensive request type.
+	MaxConcurrentScans int `yaml:"max_concurrent_scans"`
 }
 
 type Config struct {
@@ -121,6 +132,7 @@ func applyEnv(cfg *Config) error {
 	}
 
 	str("BTCDWATCH_LISTEN", &cfg.Server.Listen)
+	str("BTCDWATCH_TRUSTED_PROXY_HEADER", &cfg.Server.TrustedProxyHeader)
 	str("BTCDWATCH_NETWORK", &cfg.Node.Network)
 	str("BTCDWATCH_RPC_HOST", &cfg.Node.RPCHost)
 	str("BTCDWATCH_RPC_USER", &cfg.Node.RPCUser)
@@ -134,6 +146,10 @@ func applyEnv(cfg *Config) error {
 	num("BTCDWATCH_FEES_FLOOR_STANDARD", func(f float64) { cfg.Fees.FloorStandard = f })
 	num("BTCDWATCH_FEES_FLOOR_URGENT", func(f float64) { cfg.Fees.FloorUrgent = f })
 	num("BTCDWATCH_ADDRESS_MAX_SCAN_TXS", func(f float64) { cfg.Address.MaxScanTxs = int(f) })
+	num("BTCDWATCH_RATE_LIMIT_PER_MIN", func(f float64) { cfg.Server.RateLimitPerMin = int(f) })
+	num("BTCDWATCH_RATE_LIMIT_BURST", func(f float64) { cfg.Server.RateLimitBurst = int(f) })
+	num("BTCDWATCH_MAX_WS_CLIENTS", func(f float64) { cfg.Server.MaxWSClients = int(f) })
+	num("BTCDWATCH_ADDRESS_MAX_CONCURRENT_SCANS", func(f float64) { cfg.Address.MaxConcurrentScans = int(f) })
 
 	return err
 }

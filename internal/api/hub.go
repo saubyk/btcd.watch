@@ -45,6 +45,11 @@ type wsCommand struct {
 	txid   string
 }
 
+// maxWatchedPerClient caps watch registrations per connection. The UI
+// watches one transaction at a time; the cap only exists so a hostile
+// client cannot grow the watchers map without bound.
+const maxWatchedPerClient = 32
+
 // Hub fans chain events out to WebSocket clients. A single event-loop
 // goroutine owns all state (clients and watch registrations) — RPC-heavy
 // work happens in short-lived goroutines that only touch clients through
@@ -54,6 +59,10 @@ type Hub struct {
 	tx         TxFunc
 	mempool    MempoolFunc
 	blockFlash BlockFlashFunc
+
+	// MaxClients rejects further WebSocket registrations once reached
+	// (0 = unlimited). Set before Run.
+	MaxClients int
 
 	register   chan *wsClient
 	unregister chan *wsClient
@@ -126,6 +135,12 @@ func (h *Hub) Run(ctx context.Context) {
 			return
 
 		case c := <-h.register:
+			if h.MaxClients > 0 && len(h.clients) >= h.MaxClients {
+				// Full house: close the connection instead of letting
+				// the client map grow without bound.
+				c.shutdown()
+				continue
+			}
 			h.clients[c] = true
 			go h.pushStats(c)
 			go h.pushMempool(c)
@@ -138,6 +153,11 @@ func (h *Hub) Run(ctx context.Context) {
 				continue
 			}
 			if cmd.watch {
+				if len(cmd.client.watched) >= maxWatchedPerClient &&
+					!cmd.client.watched[cmd.txid] {
+
+					continue
+				}
 				set := h.watchers[cmd.txid]
 				if set == nil {
 					set = make(map[*wsClient]bool)

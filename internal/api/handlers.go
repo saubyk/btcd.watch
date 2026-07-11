@@ -7,11 +7,58 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"btcdwatch.com/internal/chain"
 	"btcdwatch.com/internal/explorer"
 	"btcdwatch.com/internal/node"
 )
+
+// Cache-Control helpers. Responses embedding confirmation counts change
+// every block, so even "immutable" data only gets a short public TTL —
+// enough for browsers (and an edge cache) to absorb bursts and watch-mode
+// polling without ever showing stale confirmations for long.
+func cachePublic(w http.ResponseWriter, seconds int) {
+	w.Header().Set("Cache-Control", "public, max-age="+strconv.Itoa(seconds))
+}
+
+func noStore(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+}
+
+const (
+	confirmedTTL = 30 // seconds; tx + block responses
+	liveTTL      = 5  // seconds; stats + fees
+)
+
+// scanQueueWait bounds how long an address request waits for a scan slot
+// before giving up with 503.
+const scanQueueWait = 10 * time.Second
+
+// acquireScan takes a slot from the address-scan semaphore, waiting until
+// the client hangs up or the queue-wait budget runs out. The returned
+// release must be called when the scan finishes. Address history is the
+// one endpoint that can hold the node busy for seconds per call
+// (searchrawtransactions), so it gets an explicit concurrency ceiling.
+func (s *Server) acquireScan(r *http.Request) (release func(), ok bool) {
+	if s.addrSem == nil {
+		return func() {}, true
+	}
+	select {
+	case s.addrSem <- struct{}{}:
+		return func() { <-s.addrSem }, true
+	case <-r.Context().Done():
+		return nil, false
+	case <-time.After(scanQueueWait):
+		return nil, false
+	}
+}
+
+func writeScanBusy(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "10")
+	writeError(w, http.StatusServiceUnavailable, "busy",
+		"too many address lookups in flight — try again shortly")
+}
 
 type errorBody struct {
 	Code    string `json:"code"`
@@ -88,6 +135,13 @@ func (s *Server) handleTx(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
+	// Pending payloads change with every mempool tick; confirmed ones
+	// only per block.
+	if tx.Status == "confirmed" {
+		cachePublic(w, confirmedTTL)
+	} else {
+		noStore(w)
+	}
 	writeJSON(w, http.StatusOK, tx)
 }
 
@@ -107,11 +161,19 @@ func (s *Server) handleAddress(w http.ResponseWriter, r *http.Request) {
 	offset := intParam(r, "offset", 0, 0, 1<<30)
 	limit := intParam(r, "limit", defaultActivityLimit, 1, maxActivityLimit)
 
+	release, ok := s.acquireScan(r)
+	if !ok {
+		writeScanBusy(w)
+		return
+	}
+	defer release()
+
 	summary, err := s.svc.Address(query.Address, offset, limit)
 	if err != nil {
 		writeServiceError(w, err)
 		return
 	}
+	noStore(w)
 	writeJSON(w, http.StatusOK, summary)
 }
 
@@ -133,6 +195,7 @@ func (s *Server) handleFees(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
+	cachePublic(w, liveTTL)
 	writeJSON(w, http.StatusOK, fees)
 }
 
@@ -142,6 +205,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
+	cachePublic(w, liveTTL)
 	writeJSON(w, http.StatusOK, stats)
 }
 
@@ -174,6 +238,7 @@ func (s *Server) handleBlock(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
+	cachePublic(w, confirmedTTL)
 	writeJSON(w, http.StatusOK, block)
 }
 
@@ -189,17 +254,26 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		s.searchHex(w, q, query.Hex)
 
 	case chain.QueryAddress:
+		release, ok := s.acquireScan(r)
+		if !ok {
+			writeScanBusy(w)
+			return
+		}
+		defer release()
+
 		summary, err := s.svc.Address(query.Address, 0, defaultActivityLimit)
 		if err != nil {
 			writeServiceError(w, err)
 			return
 		}
+		noStore(w)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"kind":    "address",
 			"address": summary,
 		})
 
 	default:
+		noStore(w)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"kind":  "invalid",
 			"query": q,
@@ -217,6 +291,7 @@ func (s *Server) searchBlockByHeight(w http.ResponseWriter, q string, height int
 		writeServiceError(w, err)
 		return
 	}
+	cachePublic(w, confirmedTTL)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"kind":  "block",
 		"block": block,
@@ -239,7 +314,12 @@ func (s *Server) searchHex(w http.ResponseWriter, q, hex string) {
 	}
 	switch {
 	case err == nil:
-		writeJSON(w, http.StatusOK, result)
+		if result.maxAge > 0 {
+			cachePublic(w, result.maxAge)
+		} else {
+			noStore(w)
+		}
+		writeJSON(w, http.StatusOK, result.payload)
 	case isNotFound(err):
 		writeNotFound(w, q)
 	default:
@@ -252,23 +332,41 @@ func isNotFound(err error) bool {
 		errors.Is(err, explorer.ErrBlockNotFound)
 }
 
-func (s *Server) txResult(txid string) (any, error) {
-	tx, err := s.svc.GetTx(txid)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"kind": "tx", "tx": tx}, nil
+// searchResult pairs a search payload with its cache TTL (0 = no-store),
+// which only the resolver knows (pending vs confirmed).
+type searchResult struct {
+	payload any
+	maxAge  int
 }
 
-func (s *Server) blockResult(hash string) (any, error) {
+func (s *Server) txResult(txid string) (searchResult, error) {
+	tx, err := s.svc.GetTx(txid)
+	if err != nil {
+		return searchResult{}, err
+	}
+	maxAge := 0
+	if tx.Status == "confirmed" {
+		maxAge = confirmedTTL
+	}
+	return searchResult{
+		payload: map[string]any{"kind": "tx", "tx": tx},
+		maxAge:  maxAge,
+	}, nil
+}
+
+func (s *Server) blockResult(hash string) (searchResult, error) {
 	block, err := s.svc.BlockByHash(hash, 0, defaultBlockTxLimit)
 	if err != nil {
-		return nil, err
+		return searchResult{}, err
 	}
-	return map[string]any{"kind": "block", "block": block}, nil
+	return searchResult{
+		payload: map[string]any{"kind": "block", "block": block},
+		maxAge:  confirmedTTL,
+	}, nil
 }
 
 func writeNotFound(w http.ResponseWriter, q string) {
+	noStore(w)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"kind":  "notfound",
 		"query": q,

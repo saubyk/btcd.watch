@@ -597,6 +597,18 @@ Config is a YAML file plus `BTCDWATCH_*` environment-variable overrides (env win
 | `price.refresh_seconds` | `60` | Price cache refresh interval |
 | `fees.floor_slow` / `floor_standard` / `floor_urgent` | `1` / `2` / `5` | Minimum sat/vB per tier |
 | `address.max_scan_txs` | `2000` | Cap on address-history scan before `approximate: true` |
+| `server.rate_limit_per_min` | `0` (off) | Per-client /api token budget per minute, weighted by route cost |
+| `server.rate_limit_burst` | `0` (= budget) | Cap on accumulated unused budget |
+| `server.trusted_proxy_header` | — | Client-IP header behind a proxy/CDN (e.g. `CF-Connecting-IP`) |
+| `server.max_ws_clients` | `0` (unlimited) | WebSocket connection cap |
+| `address.max_concurrent_scans` | `0` (unlimited) | Simultaneous address-history scans |
+
+**Public exposure**: the hardening knobs above default to off, matching the localhost origin of
+the project. A deployment that faces the internet must set them all; the API layer additionally
+sends security headers (CSP, nosniff, frame-ancestors) and cache headers (short public TTLs for
+confirmed/stats payloads, `no-store` for pending and address responses, immutable for hashed
+SPA assets) on every response, and the server enforces read/write/idle timeouts. HSTS and TLS
+belong to the reverse proxy in front.
 
 **Network abstraction rule**: `node.network` resolves to a `chaincfg.Params` value
 (`internal/chain`), and *every* network-dependent constant is read from it — bech32 HRP (`bcrt`

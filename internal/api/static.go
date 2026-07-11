@@ -41,11 +41,19 @@ func StaticHandler(staticDir string) (http.Handler, error) {
 		p := strings.TrimPrefix(r.URL.Path, "/")
 		if p != "" && p != "index.html" {
 			if _, err := fs.Stat(fsys, p); err == nil {
+				// Vite content-hashes everything under assets/, so those
+				// URLs never change meaning — cache them forever.
+				if strings.HasPrefix(p, "assets/") {
+					w.Header().Set("Cache-Control",
+						"public, max-age=31536000, immutable")
+				}
 				fileServer.ServeHTTP(w, r)
 				return
 			}
 		}
-		// SPA fallback: unknown paths render the app shell.
+		// SPA fallback: unknown paths render the app shell. The shell must
+		// revalidate on every load or deploys wouldn't propagate.
+		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeFileFS(w, r, fsys, "index.html")
 	}), nil
 }

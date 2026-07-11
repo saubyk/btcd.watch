@@ -92,6 +92,8 @@ func run() error {
 	})
 
 	hub := api.NewHub(svc.Stats, svc.GetTx, svc.MempoolUpdate, svc.BlockFlash)
+	// Must be set before Run starts — the hub loop reads it.
+	hub.MaxClients = cfg.Server.MaxWSClients
 	hubCtx, stopHub := context.WithCancel(context.Background())
 	defer stopHub()
 	go hub.Run(hubCtx)
@@ -112,10 +114,26 @@ func run() error {
 		return err
 	}
 
+	handler := api.New(svc, backend, params, cfg.Node.Network, hub, static,
+		api.Options{
+			RateLimitPerMin:    cfg.Server.RateLimitPerMin,
+			RateLimitBurst:     cfg.Server.RateLimitBurst,
+			TrustedProxyHeader: cfg.Server.TrustedProxyHeader,
+			MaxConcurrentScans: cfg.Address.MaxConcurrentScans,
+		})
+
+	// The write timeout is generous because address scans can hold a
+	// response open for a while. WebSocket connections are unaffected:
+	// gorilla clears the connection deadlines on upgrade and the pumps
+	// manage their own per-frame deadlines.
 	server := &http.Server{
 		Addr:              cfg.Server.Listen,
-		Handler:           api.New(svc, backend, params, cfg.Node.Network, hub, static),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    16 << 10,
 	}
 
 	errCh := make(chan error, 1)

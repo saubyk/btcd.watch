@@ -65,6 +65,10 @@ config containing credentials** (`config.yaml` is gitignored).
 | Key | Env | Default |
 | --- | --- | --- |
 | `server.listen` | `BTCDWATCH_LISTEN` | `127.0.0.1:8480` |
+| `server.rate_limit_per_min` | `BTCDWATCH_RATE_LIMIT_PER_MIN` | `0` (off) |
+| `server.rate_limit_burst` | `BTCDWATCH_RATE_LIMIT_BURST` | `0` (= per-min budget) |
+| `server.trusted_proxy_header` | `BTCDWATCH_TRUSTED_PROXY_HEADER` | — (socket address) |
+| `server.max_ws_clients` | `BTCDWATCH_MAX_WS_CLIENTS` | `0` (unlimited) |
 | `node.network` | `BTCDWATCH_NETWORK` | `regtest` |
 | `node.rpc_host` | `BTCDWATCH_RPC_HOST` | `127.0.0.1:18334` |
 | `node.rpc_user` / `node.rpc_pass` | `BTCDWATCH_RPC_USER` / `_PASS` | — (required) |
@@ -74,6 +78,11 @@ config containing credentials** (`config.yaml` is gitignored).
 | `price.refresh_seconds` | `BTCDWATCH_PRICE_REFRESH_SECONDS` | `60` |
 | `fees.floor_slow` / `_standard` / `_urgent` | `BTCDWATCH_FEES_FLOOR_*` | `1` / `2` / `5` |
 | `address.max_scan_txs` | `BTCDWATCH_ADDRESS_MAX_SCAN_TXS` | `2000` |
+| `address.max_concurrent_scans` | `BTCDWATCH_ADDRESS_MAX_CONCURRENT_SCANS` | `0` (unlimited) |
+
+The hardening knobs (rate limit, proxy header, WS cap, scan cap) default to
+off for localhost use; **set them all before exposing the server publicly**
+— `config.example.yaml` carries recommended starting values.
 
 ## API
 

@@ -7,6 +7,23 @@
 server:
   listen: 127.0.0.1:8480
 
+  # --- Public-exposure hardening -----------------------------------------
+  # All default to 0/off, which is right for localhost use. Set every one
+  # of these when the server faces the internet (values below are sane
+  # public-deployment starting points).
+  #
+  # Per-client request budget per minute across /api, weighted by cost
+  # (address lookups 8, search/ws 4, tx/block 2, stats/fees 1).
+  rate_limit_per_min: 120
+  # How much unused budget may accumulate (0 = a full minute's worth).
+  rate_limit_burst: 40
+  # Header carrying the real client IP when behind a reverse proxy/CDN —
+  # "CF-Connecting-IP" behind Cloudflare, "X-Forwarded-For" behind a local
+  # proxy. Leave empty when clients connect directly (headers are forgeable).
+  trusted_proxy_header: ""
+  # Cap on simultaneous WebSocket connections (0 = unlimited).
+  max_ws_clients: 500
+
 node:
   # mainnet | testnet3 | regtest | signet | simnet
   network: regtest
@@ -31,3 +48,6 @@ fees:
 address:
   # History scan cap before totals are flagged approximate.
   max_scan_txs: 2000
+  # Simultaneous address history scans (the most node-expensive request;
+  # 0 = unlimited). Public deployments should bound this.
+  max_concurrent_scans: 4
