@@ -1,0 +1,14 @@
+# Build btcd + btcctl from pinned source — no third-party btcd image.
+ARG GO_VERSION=1.25
+FROM golang:${GO_VERSION}-alpine AS build
+ARG BTCD_VERSION=v0.26.0
+RUN apk add --no-cache git
+RUN go install github.com/btcsuite/btcd@${BTCD_VERSION} \
+ && go install github.com/btcsuite/btcd/cmd/btcctl@${BTCD_VERSION}
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+COPY --from=build /go/bin/btcd /go/bin/btcctl /usr/local/bin/
+VOLUME ["/data"]
+EXPOSE 18334
+ENTRYPOINT ["btcd"]

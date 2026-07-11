@@ -1,0 +1,67 @@
+name: btcdwatch-regtest
+
+# Self-contained regtest network for exercising btcdwatch end-to-end.
+#
+#   bitcoind ──p2p──▶ btcd ──RPC──▶ btcdwatchd (on the host)
+#   (mines + txgen)   (node under test, txindex+addrindex)
+#
+# All state lives in disposable Docker volumes; nothing touches the host
+# beyond the btcd cert/data bind mount under ./.data and the published RPC
+# port. Bring it up with `make regtest-up`, tear it down with `make regtest-down`.
+
+services:
+  bitcoind:
+    image: ${BITCOIND_IMAGE}
+    command:
+      - -datadir=/data
+      - -conf=/etc/bitcoin/bitcoin.conf
+    volumes:
+      - bitcoind-data:/data
+      - ./config/bitcoin.conf:/etc/bitcoin/bitcoin.conf:ro
+    restart: unless-stopped
+
+  btcd:
+    build:
+      context: .
+      dockerfile: Dockerfile.btcd
+      args:
+        GO_VERSION: ${GO_VERSION}
+        BTCD_VERSION: ${BTCD_VERSION}
+    command:
+      - --regtest
+      - --datadir=/data
+      - --logdir=/data/logs
+      - --rpccert=/data/rpc.cert
+      - --rpckey=/data/rpc.key
+      - --rpcuser=${RPC_USER}
+      - --rpcpass=${RPC_PASS}
+      - --rpclisten=0.0.0.0:18334
+      - --txindex
+      - --addrindex
+      - --connect=bitcoind:18444
+    depends_on:
+      - bitcoind
+    ports:
+      # Published to loopback only; btcd's self-signed cert covers 127.0.0.1.
+      - "127.0.0.1:${BTCD_RPC_PORT}:18334"
+    volumes:
+      - ./.data/btcd:/data
+    restart: unless-stopped
+
+  churn:
+    image: ${BITCOIND_IMAGE}
+    entrypoint: ["/bin/sh", "/churn.sh"]
+    environment:
+      RPC_USER: ${RPC_USER}
+      RPC_PASS: ${RPC_PASS}
+      BLOCK_INTERVAL: ${BLOCK_INTERVAL}
+      TX_INTERVAL: ${TX_INTERVAL}
+      BITCOIND_HOST: bitcoind
+    volumes:
+      - ./scripts/churn.sh:/churn.sh:ro
+    depends_on:
+      - bitcoind
+    restart: unless-stopped
+
+volumes:
+  bitcoind-data:

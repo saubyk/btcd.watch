@@ -1,0 +1,2 @@
+# btcd datadir + generated TLS cert/key, created at runtime.
+.data/
