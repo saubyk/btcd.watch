@@ -2,7 +2,7 @@ import type { Dispatch } from 'react'
 
 import { api } from '../api/client'
 import type { AddressActivity, AddressSummary } from '../api/types'
-import { CopyIcon } from '../components/Icons'
+import { ChevronRightIcon, CopyIcon } from '../components/Icons'
 import { BackButton } from '../components/ResultParts'
 import { useCopy } from '../components/Toast'
 import { TypeChips } from '../components/TypeChips'
@@ -19,10 +19,12 @@ import type { Action } from '../state'
 export function AddressView({
   summary,
   dispatch,
+  onSearch,
   onHome,
 }: {
   summary: AddressSummary
   dispatch: Dispatch<Action>
+  onSearch: (q: string) => void
   onHome: () => void
 }) {
   const copy = useCopy()
@@ -111,7 +113,11 @@ export function AddressView({
           <div className="bp-activity">
             <div className="bp-activity-head">Recent activity</div>
             {summary.activity.map((a) => (
-              <ActivityRow key={a.txid + a.direction} activity={a} />
+              <ActivityRow
+                key={a.txid + a.direction}
+                activity={a}
+                onSearch={onSearch}
+              />
             ))}
             {summary.hasMore && (
               <div className="bp-activity-more">
@@ -137,7 +143,13 @@ const ROW_META = {
   self: { icon: '⟳', label: 'Self transfer', sign: '−' },
 } as const
 
-function ActivityRow({ activity }: { activity: AddressActivity }) {
+function ActivityRow({
+  activity,
+  onSearch,
+}: {
+  activity: AddressActivity
+  onSearch: (q: string) => void
+}) {
   const meta = ROW_META[activity.direction]
   const pending = activity.status === 'pending'
 
@@ -153,7 +165,11 @@ function ActivityRow({ activity }: { activity: AddressActivity }) {
       }`
 
   return (
-    <div className="bp-activity-row">
+    <button
+      className="bp-activity-row"
+      onClick={() => onSearch(activity.txid)}
+      title="View this transaction"
+    >
       <span className={`bp-activity-icon bp-activity-icon--${activity.direction}`}>
         {meta.icon}
       </span>
@@ -164,20 +180,25 @@ function ActivityRow({ activity }: { activity: AddressActivity }) {
         </div>
       </div>
       <div className="bp-activity-right">
-        <div
-          className={`bp-activity-amount bp-activity-amount--${activity.direction}`}
-        >
-          {meta.sign}
-          {formatBtc(activity.amountSats)} BTC
+        <div className="bp-activity-amounts">
+          <div
+            className={`bp-activity-amount bp-activity-amount--${activity.direction}`}
+          >
+            {meta.sign}
+            {formatBtc(activity.amountSats)} BTC
+          </div>
+          <span
+            className={`bp-activity-badge ${
+              pending
+                ? 'bp-activity-badge--pending'
+                : 'bp-activity-badge--confirmed'
+            }`}
+          >
+            {pending ? 'Pending' : 'Confirmed'}
+          </span>
         </div>
-        <span
-          className={`bp-activity-badge ${
-            pending ? 'bp-activity-badge--pending' : 'bp-activity-badge--confirmed'
-          }`}
-        >
-          {pending ? 'Pending' : 'Confirmed'}
-        </span>
+        <ChevronRightIcon />
       </div>
-    </div>
+    </button>
   )
 }

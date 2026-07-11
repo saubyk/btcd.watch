@@ -8,6 +8,7 @@ import type {
   QueueBand,
   Stats,
 } from '../api/types'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import {
   formatAgeShort,
   formatBtc,
@@ -205,6 +206,10 @@ function ArrivalsFeed({
     return () => clearInterval(timer)
   }, [arrivals.length])
 
+  // Round-5: phones get a two-line stacked row; wider screens keep the
+  // aligned single-row columns.
+  const isNarrow = useMediaQuery('(max-width: 639px)')
+
   if (arrivals.length === 0) return null
 
   return (
@@ -213,28 +218,96 @@ function ArrivalsFeed({
         <span className="bp-feed-title">Just joined the line</span>
         <span className="bp-feed-hint">tap one to inspect it</span>
       </div>
-      {arrivals.slice(0, FEED_ROWS).map((a) => (
-        <button
-          key={a.txid}
-          className="bp-feed-row"
-          onClick={() => onSearch(a.txid)}
-          title="Track this unconfirmed transaction"
-        >
-          <span
-            className={`bp-feed-dot bp-feed-dot--${bandIndex(queue, a.feeRateSatPerVb)}`}
+      {arrivals.slice(0, FEED_ROWS).map((a) =>
+        isNarrow ? (
+          <FeedRowNarrow
+            key={a.txid}
+            arrival={a}
+            queue={queue}
+            interval={interval}
+            now={now}
+            onSearch={onSearch}
           />
-          <span className="bp-feed-txid">{a.txid}</span>
-          <span className="bp-feed-age">{formatAgeShort(a.time, now)}</span>
-          <span className="bp-feed-rate">
-            {Math.round(a.feeRateSatPerVb * 10) / 10} sat/vB
-          </span>
-          <span className="bp-feed-eta">
-            {etaChip(queue, a.feeRateSatPerVb, interval)}
-          </span>
-          <span className="bp-feed-amount">{formatBtc(a.amountSats)} BTC</span>
-        </button>
-      ))}
+        ) : (
+          <FeedRowWide
+            key={a.txid}
+            arrival={a}
+            queue={queue}
+            interval={interval}
+            now={now}
+            onSearch={onSearch}
+          />
+        ),
+      )}
     </div>
+  )
+}
+
+type FeedRowProps = {
+  arrival: Arrival
+  queue: Queue
+  interval: number
+  now: number
+  onSearch: (q: string) => void
+}
+
+/** Wide (≥640px): one aligned row, fixed columns, no wrapping. */
+function FeedRowWide({ arrival: a, queue, interval, now, onSearch }: FeedRowProps) {
+  return (
+    <button
+      className="bp-feed-row"
+      onClick={() => onSearch(a.txid)}
+      title="Track this unconfirmed transaction"
+    >
+      <span
+        className={`bp-feed-dot bp-feed-dot--${bandIndex(queue, a.feeRateSatPerVb)}`}
+      />
+      <span className="bp-feed-txid">{a.txid}</span>
+      <span className="bp-feed-age">{formatAgeShort(a.time, now)}</span>
+      <span className="bp-feed-rate">
+        {Math.round(a.feeRateSatPerVb * 10) / 10} sat/vB
+      </span>
+      <span className="bp-feed-eta">{etaChip(queue, a.feeRateSatPerVb, interval)}</span>
+      <span className="bp-feed-amount">{formatBtc(a.amountSats)} BTC</span>
+    </button>
+  )
+}
+
+/** Narrow (<640px): two stacked lines — txid+amount, then rate·age·ETA. */
+function FeedRowNarrow({
+  arrival: a,
+  queue,
+  interval,
+  now,
+  onSearch,
+}: FeedRowProps) {
+  return (
+    <button
+      className="bp-feed-row bp-feed-row--narrow"
+      onClick={() => onSearch(a.txid)}
+      title="Track this unconfirmed transaction"
+    >
+      <span className="bp-feed-line">
+        <span
+          className={`bp-feed-dot bp-feed-dot--${bandIndex(queue, a.feeRateSatPerVb)}`}
+        />
+        <span className="bp-feed-txid bp-feed-txid--m">{a.txid}</span>
+        <span className="bp-feed-amount bp-feed-amount--m">
+          {formatBtc(a.amountSats)} BTC
+        </span>
+      </span>
+      <span className="bp-feed-line bp-feed-line--sub">
+        <span className="bp-feed-rate bp-feed-rate--m">
+          {Math.round(a.feeRateSatPerVb * 10) / 10} sat/vB
+        </span>
+        <span className="bp-feed-age bp-feed-age--m">
+          {formatAgeShort(a.time, now)}
+        </span>
+        <span className="bp-feed-eta bp-feed-eta--m">
+          {etaChip(queue, a.feeRateSatPerVb, interval)}
+        </span>
+      </span>
+    </button>
   )
 }
 

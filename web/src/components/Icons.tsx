@@ -88,6 +88,24 @@ export function ChevronDownIcon({ size = 13, color = '#8A7C68' }) {
   )
 }
 
+export function ChevronRightIcon({ size = 16, color = '#C9B79E' }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+    >
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  )
+}
+
 export function CopyIcon({ size = 14 }) {
   return (
     <svg

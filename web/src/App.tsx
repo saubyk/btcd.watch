@@ -79,6 +79,7 @@ export function App() {
           <AddressView
             summary={state.address}
             dispatch={dispatch}
+            onSearch={search}
             onHome={goHome}
           />
         ) : null

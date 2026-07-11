@@ -200,6 +200,13 @@ input::placeholder {
   box-shadow: var(--bp-shadow-btn);
   min-height: 54px;
 }
+/* Round-5: on phones the button drops to its own full-width line below the
+   input pill (which already wraps via the row's flex-wrap). */
+@media (max-width: 639px) {
+  .bp-btn-primary {
+    flex: 1 1 100%;
+  }
+}
 
 /* .bp-chip survives the example-chips removal: it is the generic pill
    button (address "Load more"). */
@@ -455,11 +462,48 @@ input::placeholder {
   border-top: 1px solid var(--bp-divider-2);
   padding: 11px 8px;
   cursor: pointer;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   animation: bpFade 0.5s ease;
 }
 .bp-feed-row:hover {
   background: var(--bp-inset);
+}
+/* Narrow (<640px): two stacked lines instead of aligned columns. */
+.bp-feed-row--narrow {
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 8px;
+}
+.bp-feed-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.bp-feed-line--sub {
+  padding-left: 20px;
+}
+.bp-feed-txid--m {
+  font-size: 13.5px;
+  min-width: 0;
+}
+.bp-feed-amount--m {
+  width: auto;
+  font-size: 13.5px;
+}
+.bp-feed-rate--m {
+  width: auto;
+  font-size: 12px;
+  text-align: left;
+}
+.bp-feed-age--m {
+  width: auto;
+  font-size: 12px;
+}
+.bp-feed-eta--m {
+  width: auto;
+  font-size: 11px;
+  margin-left: auto;
 }
 .bp-feed-dot {
   width: 10px;
@@ -1452,11 +1496,17 @@ button.bp-tile-item--link:hover {
   display: flex;
   align-items: center;
   gap: 14px;
+  width: 100%;
   padding: 15px 26px;
+  border: none;
   border-top: 1px solid var(--bp-divider-2);
+  background: none;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
 }
-.bp-activity-row:first-of-type {
-  border-top: none;
+.bp-activity-row:hover {
+  background: var(--bp-inset);
 }
 .bp-activity-icon {
   width: 36px;
@@ -1494,6 +1544,11 @@ button.bp-tile-item--link:hover {
   color: var(--bp-text-muted-2);
 }
 .bp-activity-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.bp-activity-amounts {
   text-align: right;
 }
 .bp-activity-amount {
