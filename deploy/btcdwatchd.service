@@ -1,0 +1,29 @@
+[Unit]
+Description=btcdwatchd — btcdwatch.com explorer (API + embedded SPA)
+After=network-online.target btcd.service
+Wants=network-online.target
+# Requires= is deliberately absent: btcdwatchd degrades gracefully when the
+# node is down (503 node_unavailable) and reconnects on its own, so a btcd
+# restart shouldn't take the site down with it.
+
+[Service]
+User=btcdwatch
+Group=btcdwatch
+WorkingDirectory=/home/btcdwatch/btcdwatch.com
+ExecStart=/home/btcdwatch/btcdwatch.com/bin/btcdwatchd --config /etc/btcdwatch/config.yaml
+Restart=on-failure
+RestartSec=5
+
+# The smoke tests showed the binary can outlive a polite signal while WS
+# connections drain; make sure systemd finishes the job.
+TimeoutStopSec=10
+
+# Sandboxing: needs to read the repo checkout (binary + config) and the
+# btcd RPC cert, nothing else. No writable paths at all.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

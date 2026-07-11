@@ -1,0 +1,39 @@
+# Production btcdwatch.com configuration — install at
+# /etc/btcdwatch/config.yaml, chmod 640, owned root:btcdwatch.
+# Fill in the RPC credentials from /etc/btcd/btcd.conf; nothing else
+# should need editing.
+
+server:
+  # Loopback only — Caddy terminates TLS and proxies to this.
+  listen: 127.0.0.1:8480
+
+  # Hardening (see docs/ARCHITECTURE.md "Public exposure").
+  rate_limit_per_min: 120
+  rate_limit_burst: 40
+  # Cloudflare sits in front and sets the real client IP here. If you ever
+  # remove Cloudflare, EMPTY THIS OUT — a directly-reachable server must
+  # not trust any forwarded header.
+  trusted_proxy_header: CF-Connecting-IP
+  max_ws_clients: 500
+
+node:
+  network: mainnet
+  rpc_host: 127.0.0.1:8334
+  rpc_user: CHANGE_ME
+  rpc_pass: CHANGE_ME
+  rpc_cert: /var/lib/btcd/rpc.cert
+
+price:
+  source: coingecko
+  # Served (labeled as static) if CoinGecko is unreachable or rate-limits.
+  static_usd: 98000
+  refresh_seconds: 60
+
+fees:
+  floor_slow: 1
+  floor_standard: 2
+  floor_urgent: 5
+
+address:
+  max_scan_txs: 2000
+  max_concurrent_scans: 4

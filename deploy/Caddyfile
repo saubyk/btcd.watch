@@ -1,0 +1,21 @@
+# Caddy reverse proxy for btcdwatch.com — install at /etc/caddy/Caddyfile.
+#
+# Caddy obtains and renews the origin TLS certificate automatically
+# (HTTP-01 passes through Cloudflare's proxy). In the Cloudflare dashboard
+# set SSL/TLS mode to "Full (strict)" so edge->origin is verified TLS.
+
+btcdwatch.com {
+	encode zstd gzip
+
+	# HSTS lives here, not in the app (the app also serves plain-HTTP
+	# localhost deployments). Start with a modest max-age; raise to
+	# 31536000 + preload once the setup has been stable for a while.
+	header Strict-Transport-Security "max-age=86400"
+
+	# WebSocket upgrade for /api/ws passes through reverse_proxy untouched.
+	reverse_proxy 127.0.0.1:8480
+}
+
+www.btcdwatch.com {
+	redir https://btcdwatch.com{uri} permanent
+}

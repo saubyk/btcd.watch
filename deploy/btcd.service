@@ -1,0 +1,28 @@
+[Unit]
+Description=btcd (mainnet, txindex+addrindex) — btcdwatch.com backend node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=btcd
+Group=btcd
+ExecStart=/usr/local/bin/btcd --configfile=/etc/btcd/btcd.conf
+Restart=on-failure
+RestartSec=10
+
+# btcd holds many block/index files and peer sockets.
+LimitNOFILE=16384
+
+# Give the node time to flush its databases on stop; killing it mid-write
+# forces an expensive (hours) index recovery on the next start.
+TimeoutStopSec=600
+
+# Sandboxing: btcd only needs its own data directory.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/btcd
+
+[Install]
+WantedBy=multi-user.target
