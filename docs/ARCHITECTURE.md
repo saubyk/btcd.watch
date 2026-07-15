@@ -457,6 +457,14 @@ plays the detach-and-land effect once, keyed by height. The first push after a n
 `prefers-reduced-motion` both collapses all CSS animation globally and stops the JS from
 mounting effect nodes at all (`useMotionMode`).
 
+The round-7 "heartbeat" is display-side only: mempool counts shown in the stats bar and the
+queue card ease toward the pushed value (`useTweenedNumber`; the raw count still drives the
+bar width), the "next block in" pill ticks down locally between stats pushes and re-anchors
+on every push (`useCountdown` — the on-block push resets it), the block-height tile pops
+once per height change, new feed rows land with a fading glow, and the confirmation squares
+stagger in on the just-watched confirmed view. All of it keys off the same pushes above —
+no extra wire traffic.
+
 ### Sequence: search flow
 
 ```mermaid

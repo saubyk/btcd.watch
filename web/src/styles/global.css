@@ -517,6 +517,14 @@ input::placeholder {
   flex-wrap: nowrap;
   animation: bpFade 0.5s ease;
 }
+/* A row that arrived after first paint lands warm, on top of the
+   entrance fade (the shorthand above would otherwise drop it). No fill
+   mode: once cooled, hover must own the background again. */
+.bp-feed-row--fresh {
+  animation:
+    bpFade 0.5s ease,
+    bpGlowFade 1.4s ease;
+}
 .bp-feed-row:hover {
   background: var(--bp-inset);
 }
@@ -822,6 +830,11 @@ input::placeholder {
 .bp-stat-unit {
   font-size: 13px;
   color: var(--bp-dark-muted);
+}
+/* One-shot pop when the block height ticks up (keyed per height). */
+.bp-tickup {
+  display: inline-block;
+  animation: bpTickUp 0.7s ease;
 }
 
 /* ===== Node CTA ===== */
@@ -1244,6 +1257,11 @@ button.bp-tile-item--link:hover {
 .bp-progress-seg--empty {
   background: #eaf0ec;
   border: 1.5px dashed #bfd8c8;
+}
+/* Just-watched confirmation: the squares pop in staggered (delay is a
+   per-segment inline style). */
+.bp-progress-seg--pop {
+  animation: bpPopIn 0.5s ease both;
 }
 .bp-progress-caption {
   font-size: 12.5px;

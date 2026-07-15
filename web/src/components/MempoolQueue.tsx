@@ -18,6 +18,7 @@ import {
 } from '../lib/format'
 import { Marker, QueueSegments } from './QueueBar'
 import { DetachFx, DriftOverlay, JoinParticles, trafficLevel } from './QueueMotion'
+import { TweenedCount } from './TweenedCount'
 
 /** The feed shows at most this many arrivals. */
 const FEED_ROWS = 6
@@ -126,7 +127,7 @@ export function MempoolQueue({
             <span className="bp-live-dot bp-live-dot--sm bp-pulse-slow" />
             Live ·{' '}
             <span className="bp-mempool-count">
-              {formatNumber(queue.txCount)}
+              <TweenedCount value={queue.txCount} format={formatNumber} />
             </span>
             &nbsp;waiting
           </span>
@@ -235,6 +236,18 @@ function ArrivalsFeed({
     return () => clearInterval(timer)
   }, [arrivals.length])
 
+  // Fresh-row glow: the first non-empty snapshot (initial load, or a
+  // reconnect after the feed emptied) seeds the seen-set without glow;
+  // afterwards a row is fresh iff its txid wasn't seen when it mounted.
+  const glowOn = useMotionMode() !== 'off'
+  const seen = useRef<Set<string> | null>(null)
+  const isFresh = (txid: string) =>
+    glowOn && seen.current !== null && !seen.current.has(txid)
+  useEffect(() => {
+    seen.current =
+      arrivals.length === 0 ? null : new Set(arrivals.map((a) => a.txid))
+  }, [arrivals])
+
   // Round-5: phones get a two-line stacked row; wider screens keep the
   // aligned single-row columns.
   const isNarrow = useMediaQuery('(max-width: 639px)')
@@ -255,6 +268,7 @@ function ArrivalsFeed({
             queue={queue}
             interval={interval}
             now={now}
+            fresh={isFresh(a.txid)}
             onSearch={onSearch}
           />
         ) : (
@@ -264,6 +278,7 @@ function ArrivalsFeed({
             queue={queue}
             interval={interval}
             now={now}
+            fresh={isFresh(a.txid)}
             onSearch={onSearch}
           />
         ),
@@ -277,14 +292,31 @@ type FeedRowProps = {
   queue: Queue
   interval: number
   now: number
+  /** True when the row arrived after the feed was first painted — it
+   * lands with a warm glow that fades (round-7). */
+  fresh: boolean
   onSearch: (q: string) => void
 }
 
+/** Freshness is a mount-time fact: keep the glow class for the row's
+ * lifetime so a re-render can't cut the fade short. The animation only
+ * plays once either way. */
+function useWasFresh(fresh: boolean): string {
+  return useRef(fresh).current ? ' bp-feed-row--fresh' : ''
+}
+
 /** Wide (≥640px): one aligned row, fixed columns, no wrapping. */
-function FeedRowWide({ arrival: a, queue, interval, now, onSearch }: FeedRowProps) {
+function FeedRowWide({
+  arrival: a,
+  queue,
+  interval,
+  now,
+  fresh,
+  onSearch,
+}: FeedRowProps) {
   return (
     <button
-      className="bp-feed-row"
+      className={`bp-feed-row${useWasFresh(fresh)}`}
       onClick={() => onSearch(a.txid)}
       title="Track this unconfirmed transaction"
     >
@@ -308,11 +340,12 @@ function FeedRowNarrow({
   queue,
   interval,
   now,
+  fresh,
   onSearch,
 }: FeedRowProps) {
   return (
     <button
-      className="bp-feed-row bp-feed-row--narrow"
+      className={`bp-feed-row bp-feed-row--narrow${useWasFresh(fresh)}`}
       onClick={() => onSearch(a.txid)}
       title="Track this unconfirmed transaction"
     >

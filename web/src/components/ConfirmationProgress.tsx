@@ -1,16 +1,22 @@
+import { useMotionMode } from '../hooks/useMotion'
 import { formatNumber } from '../lib/format'
 
 const TARGET = 6
 
 /**
  * The six-segment confirmation bar. Below six confirmations it counts
- * "N of 6"; at or beyond it reads fully settled.
+ * "N of 6"; at or beyond it reads fully settled. When the tx confirmed
+ * while being watched, the segments pop in staggered (round-7).
  */
 export function ConfirmationProgress({
   confirmations,
+  justConfirmed = false,
 }: {
   confirmations: number
+  justConfirmed?: boolean
 }) {
+  const motionOn = useMotionMode() !== 'off'
+  const pop = justConfirmed && motionOn
   const filled = Math.min(confirmations, TARGET)
   const settled = confirmations >= TARGET
 
@@ -38,7 +44,8 @@ export function ConfirmationProgress({
             key={i}
             className={`bp-progress-seg ${
               i < filled ? 'bp-progress-seg--filled' : 'bp-progress-seg--empty'
-            }`}
+            }${pop ? ' bp-progress-seg--pop' : ''}`}
+            style={pop ? { animationDelay: `${i * 90}ms` } : undefined}
           />
         ))}
       </div>
