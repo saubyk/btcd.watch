@@ -37,7 +37,9 @@ export function Landing({
       </section>
 
       {/* Round 4: high-level stats first, then the detailed queue. */}
-      {ready && appConfig.showStats && <StatsBar stats={data.stats} />}
+      {ready && appConfig.showStats && (
+        <StatsBar stats={data.stats} onSearch={onSearch} />
+      )}
       {ready && appConfig.showMempool && (
         <MempoolQueue
           stats={data.stats}

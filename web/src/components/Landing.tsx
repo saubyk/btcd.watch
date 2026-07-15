@@ -87,12 +87,24 @@ export function SearchBar({ onSearch }: { onSearch: (q: string) => void }) {
 
 /* ===== Dark stats bar ===== */
 
-export function StatsBar({ stats }: { stats: Stats | null }) {
+export function StatsBar({
+  stats,
+  onSearch,
+}: {
+  stats: Stats | null
+  onSearch: (q: string) => void
+}) {
   if (!stats) return null
-  return <StatsBarInner stats={stats} />
+  return <StatsBarInner stats={stats} onSearch={onSearch} />
 }
 
-function StatsBarInner({ stats }: { stats: Stats }) {
+function StatsBarInner({
+  stats,
+  onSearch,
+}: {
+  stats: Stats
+  onSearch: (q: string) => void
+}) {
   const motionOn = useMotionMode() !== 'off'
   // The height pops only on a live change, never on the first paint.
   const firstHeight = useRef(stats.blockHeight)
@@ -107,8 +119,15 @@ function StatsBarInner({ stats }: { stats: Stats }) {
             <span className="bp-stat-unit">tx</span>
           </div>
         </div>
-        <div>
-          <div className="bp-stat-label">Block height</div>
+        {/* Round 7: the height tile is the door into the chain. */}
+        <button
+          className="bp-stat-tile-btn"
+          onClick={() => onSearch(String(stats.blockHeight))}
+          title="Open the latest block and browse the chain"
+        >
+          <div className="bp-stat-label">
+            Block height <span className="bp-stat-hint">· view →</span>
+          </div>
           <div className="bp-stat-value bp-stat-value--mono">
             <span
               key={`h${stats.blockHeight}`}
@@ -117,7 +136,7 @@ function StatsBarInner({ stats }: { stats: Stats }) {
               {formatNumber(stats.blockHeight)}
             </span>
           </div>
-        </div>
+        </button>
         <div>
           <div className="bp-stat-label">Next halving</div>
           <div className="bp-stat-value">

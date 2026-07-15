@@ -836,6 +836,27 @@ input::placeholder {
   display: inline-block;
   animation: bpTickUp 0.7s ease;
 }
+/* Round 7: the height tile is a button into the Block view. Negative
+   margins cancel the hover padding so the bar's layout is unchanged. */
+.bp-stat-tile-btn {
+  display: block;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border-radius: 10px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.bp-stat-tile-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.bp-stat-hint {
+  color: #7e7160;
+  font-weight: 600;
+}
 
 /* ===== Node CTA ===== */
 /* Owns its 72px top gap so it holds whichever section precedes it
@@ -1887,6 +1908,24 @@ button.bp-tile-item--link:hover {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+/* Round 7: at the tip the next-button gives way to a live pill. */
+.bp-block-tip-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #fcebd4;
+  color: #b5790a;
+  border-radius: 11px;
+  padding: 9px 15px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.bp-block-tip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: #2ba45f;
 }
 .bp-blocktx-row {
   display: flex;

@@ -348,6 +348,13 @@ derivation so amounts match the transaction view, with prevouts served from the 
 feerate needs **no full-block scan**: total fees = coinbase outputs − `chain.BlockSubsidy(height)`,
 spread over the block's non-coinbase vsize (`(weight+3)/4` minus the coinbase's).
 
+Round 7 makes the view browsable: the stats-bar height tile deep-links to the tip via the
+normal search flow, while the Block view's prev/next buttons refetch this endpoint directly
+and swap the result in place (no loading view; `?q=` is kept in sync for shareable URLs).
+Depth ("N blocks deep — settling in / permanent") tracks the pushed tip height live, so an
+open tip view flips to "1 block deep" — and grows a next-button — the moment a block is
+mined; at the tip, a live pill reuses the hero countdown instead.
+
 ### `GET /api/healthz`
 
 `200 {"status":"ok","network":"regtest","nodeConnected":true,"blockHeight":512}` — or `503
