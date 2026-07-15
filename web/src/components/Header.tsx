@@ -1,4 +1,5 @@
 import type { FeeEstimate } from '../api/types'
+import { useMotionMode } from '../hooks/useMotion'
 import { ChevronDownIcon } from './Icons'
 
 /**
@@ -15,6 +16,7 @@ export function Header({
   onOpenFees: () => void
 }) {
   const standard = fees?.tiers.find((t) => t.id === 'standard')
+  const motionOn = useMotionMode() !== 'off'
 
   return (
     <header className="bp-header">
@@ -30,7 +32,7 @@ export function Header({
           onClick={onOpenFees}
           title="What fee should I pay?"
         >
-          <span className="bp-live-dot" />
+          <span className={`bp-live-dot${motionOn ? ' bp-pulse-slow' : ''}`} />
           Fees:{' '}
           <span className="bp-fee-ticker-rate">
             {standard ? `${Math.round(standard.satPerVb)} sat/vB` : '—'}

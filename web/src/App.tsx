@@ -92,6 +92,7 @@ export function App() {
         return state.block ? (
           <BlockView
             block={state.block}
+            stats={data.stats}
             dispatch={dispatch}
             onSearch={search}
             onHome={goHome}

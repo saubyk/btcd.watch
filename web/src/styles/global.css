@@ -517,6 +517,14 @@ input::placeholder {
   flex-wrap: nowrap;
   animation: bpFade 0.5s ease;
 }
+/* A row that arrived after first paint lands warm, on top of the
+   entrance fade (the shorthand above would otherwise drop it). No fill
+   mode: once cooled, hover must own the background again. */
+.bp-feed-row--fresh {
+  animation:
+    bpFade 0.5s ease,
+    bpGlowFade 1.4s ease;
+}
 .bp-feed-row:hover {
   background: var(--bp-inset);
 }
@@ -822,6 +830,32 @@ input::placeholder {
 .bp-stat-unit {
   font-size: 13px;
   color: var(--bp-dark-muted);
+}
+/* One-shot pop when the block height ticks up (keyed per height). */
+.bp-tickup {
+  display: inline-block;
+  animation: bpTickUp 0.7s ease;
+}
+/* Round 7: the height tile is a button into the Block view. Negative
+   margins cancel the hover padding so the bar's layout is unchanged. */
+.bp-stat-tile-btn {
+  display: block;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border-radius: 10px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.bp-stat-tile-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.bp-stat-hint {
+  color: #7e7160;
+  font-weight: 600;
 }
 
 /* ===== Node CTA ===== */
@@ -1244,6 +1278,11 @@ button.bp-tile-item--link:hover {
 .bp-progress-seg--empty {
   background: #eaf0ec;
   border: 1.5px dashed #bfd8c8;
+}
+/* Just-watched confirmation: the squares pop in staggered (delay is a
+   per-segment inline style). */
+.bp-progress-seg--pop {
+  animation: bpPopIn 0.5s ease both;
 }
 .bp-progress-caption {
   font-size: 12.5px;
@@ -1869,6 +1908,24 @@ button.bp-tile-item--link:hover {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+/* Round 7: at the tip the next-button gives way to a live pill. */
+.bp-block-tip-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #fcebd4;
+  color: #b5790a;
+  border-radius: 11px;
+  padding: 9px 15px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.bp-block-tip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: #2ba45f;
 }
 .bp-blocktx-row {
   display: flex;

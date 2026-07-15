@@ -1,7 +1,9 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 
 import type { Stats } from '../api/types'
 import { appConfig } from '../appConfig'
+import { useCountdown } from '../hooks/useCountdown'
+import { useMotionMode } from '../hooks/useMotion'
 import {
   formatCompact,
   formatEta,
@@ -10,6 +12,7 @@ import {
   formatNumber,
 } from '../lib/format'
 import { SearchIcon } from './Icons'
+import { TweenedCount } from './TweenedCount'
 
 /* ===== Live status pill ===== */
 
@@ -37,10 +40,18 @@ export function LiveStatusPill({
       </div>
     )
   }
+  return <LivePill stats={stats} />
+}
+
+/** The live branch of the status pill: the ETA counts down locally
+ * between pushes and the dot pulses (round-7 heartbeat). */
+function LivePill({ stats }: { stats: Stats }) {
+  const motionOn = useMotionMode() !== 'off'
+  const eta = useCountdown(stats.nextBlockEtaSeconds, stats, motionOn)
   return (
     <div className="bp-live-pill">
-      <span className="bp-live-dot" />
-      Network live · next block in {formatEtaShort(stats.nextBlockEtaSeconds)}
+      <span className={`bp-live-dot${motionOn ? ' bp-pulse-slow' : ''}`} />
+      Network live · next block in {formatEtaShort(eta)}
     </div>
   )
 }
@@ -76,24 +87,56 @@ export function SearchBar({ onSearch }: { onSearch: (q: string) => void }) {
 
 /* ===== Dark stats bar ===== */
 
-export function StatsBar({ stats }: { stats: Stats | null }) {
+export function StatsBar({
+  stats,
+  onSearch,
+}: {
+  stats: Stats | null
+  onSearch: (q: string) => void
+}) {
   if (!stats) return null
+  return <StatsBarInner stats={stats} onSearch={onSearch} />
+}
+
+function StatsBarInner({
+  stats,
+  onSearch,
+}: {
+  stats: Stats
+  onSearch: (q: string) => void
+}) {
+  const motionOn = useMotionMode() !== 'off'
+  // The height pops only on a live change, never on the first paint.
+  const firstHeight = useRef(stats.blockHeight)
+  const ticked = motionOn && stats.blockHeight !== firstHeight.current
   return (
     <section className="bp-stats-section">
       <div className="bp-stats-bar">
         <div>
           <div className="bp-stat-label">Mempool size</div>
           <div className="bp-stat-value bp-stat-value--mono">
-            {formatCompact(stats.mempool.txCount)}{' '}
+            <TweenedCount value={stats.mempool.txCount} format={formatCompact} />{' '}
             <span className="bp-stat-unit">tx</span>
           </div>
         </div>
-        <div>
-          <div className="bp-stat-label">Block height</div>
-          <div className="bp-stat-value bp-stat-value--mono">
-            {formatNumber(stats.blockHeight)}
+        {/* Round 7: the height tile is the door into the chain. */}
+        <button
+          className="bp-stat-tile-btn"
+          onClick={() => onSearch(String(stats.blockHeight))}
+          title="Open the latest block and browse the chain"
+        >
+          <div className="bp-stat-label">
+            Block height <span className="bp-stat-hint">· view →</span>
           </div>
-        </div>
+          <div className="bp-stat-value bp-stat-value--mono">
+            <span
+              key={`h${stats.blockHeight}`}
+              className={ticked ? 'bp-tickup' : undefined}
+            >
+              {formatNumber(stats.blockHeight)}
+            </span>
+          </div>
+        </button>
         <div>
           <div className="bp-stat-label">Next halving</div>
           <div className="bp-stat-value">

@@ -89,7 +89,10 @@ export function ConfirmedTx({
             )}
           </div>
 
-          <ConfirmationProgress confirmations={tx.confirmations} />
+          <ConfirmationProgress
+            confirmations={tx.confirmations}
+            justConfirmed={justConfirmed}
+          />
 
           <div className="bp-toggle" role="tablist">
             <button

@@ -348,6 +348,13 @@ derivation so amounts match the transaction view, with prevouts served from the 
 feerate needs **no full-block scan**: total fees = coinbase outputs − `chain.BlockSubsidy(height)`,
 spread over the block's non-coinbase vsize (`(weight+3)/4` minus the coinbase's).
 
+Round 7 makes the view browsable: the stats-bar height tile deep-links to the tip via the
+normal search flow, while the Block view's prev/next buttons refetch this endpoint directly
+and swap the result in place (no loading view; `?q=` is kept in sync for shareable URLs).
+Depth ("N blocks deep — settling in / permanent") tracks the pushed tip height live, so an
+open tip view flips to "1 block deep" — and grows a next-button — the moment a block is
+mined; at the tip, a live pill reuses the hero countdown instead.
+
 ### `GET /api/healthz`
 
 `200 {"status":"ok","network":"regtest","nodeConnected":true,"blockHeight":512}` — or `503
@@ -456,6 +463,14 @@ plays the detach-and-land effect once, keyed by height. The first push after a n
 `appConfig.motion` level (`ambient` | `moments` | `off`) gates the effects, and
 `prefers-reduced-motion` both collapses all CSS animation globally and stops the JS from
 mounting effect nodes at all (`useMotionMode`).
+
+The round-7 "heartbeat" is display-side only: mempool counts shown in the stats bar and the
+queue card ease toward the pushed value (`useTweenedNumber`; the raw count still drives the
+bar width), the "next block in" pill ticks down locally between stats pushes and re-anchors
+on every push (`useCountdown` — the on-block push resets it), the block-height tile pops
+once per height change, new feed rows land with a fading glow, and the confirmation squares
+stagger in on the just-watched confirmed view. All of it keys off the same pushes above —
+no extra wire traffic.
 
 ### Sequence: search flow
 
