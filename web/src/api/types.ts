@@ -152,6 +152,9 @@ export interface Arrival {
 export interface MempoolUpdate {
   queue: Queue
   arrivals: Arrival[]
+  /** Raw tx-accepted rate over the last minute (uncapped, unlike
+   * arrivals) — drives the queue-bar particle stream. */
+  inflowTxPerMin: number
 }
 
 export interface BlockFlash {

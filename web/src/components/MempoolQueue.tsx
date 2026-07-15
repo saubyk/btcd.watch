@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import type {
   Arrival,
@@ -9,6 +9,7 @@ import type {
   Stats,
 } from '../api/types'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { useMotionMode } from '../hooks/useMotion'
 import {
   formatAgeShort,
   formatBtc,
@@ -16,6 +17,7 @@ import {
   formatNumber,
 } from '../lib/format'
 import { Marker, QueueSegments } from './QueueBar'
+import { DetachFx, DriftOverlay, JoinParticles, trafficLevel } from './QueueMotion'
 
 /** The feed shows at most this many arrivals. */
 const FEED_ROWS = 6
@@ -75,6 +77,19 @@ export function MempoolQueue({
   minedFlash: BlockFlash | null
   onSearch: (q: string) => void
 }) {
+  const motion = useMotionMode()
+
+  // Particle bursts key off a per-push tick. The first push after a null
+  // (initial load or a reconnect snapshot) is a baseline, not an arrival
+  // burst — it keeps tick 0 and spawns nothing.
+  const [tick, setTick] = useState(0)
+  const prevMempool = useRef<MempoolUpdate | null>(null)
+  useEffect(() => {
+    if (mempool === null) setTick(0)
+    else if (prevMempool.current !== null) setTick((t) => t + 1)
+    prevMempool.current = mempool
+  }, [mempool])
+
   // Live pushes are fresher than the 10s stats queue; use whichever is
   // newest available.
   const queue = mempool?.queue ?? stats?.queue
@@ -140,12 +155,26 @@ export function MempoolQueue({
               style={{ width: `${barFraction * 100}%` }}
             >
               <QueueSegments queue={queue} />
+              {motion === 'ambient' && <DriftOverlay />}
             </div>
             <Marker
               fraction={cutoffFraction}
               kind="cutoff"
               label="next-block cutoff"
             />
+            {motion !== 'off' && tick > 0 && mempool && (
+              <JoinParticles
+                tick={tick}
+                traffic={trafficLevel(mempool.inflowTxPerMin)}
+                barPct={barFraction * 100}
+              />
+            )}
+            {motion !== 'off' && minedFlash && (
+              <DetachFx
+                height={minedFlash.height}
+                cutoffPct={cutoffFraction * 100}
+              />
+            )}
           </div>
         </div>
 

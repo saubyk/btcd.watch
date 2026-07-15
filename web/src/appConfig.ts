@@ -5,6 +5,10 @@ export const appConfig = {
    * the 10s stats pushes only (useful for tests/screenshots). */
   liveMempool: true,
   showStats: true,
+  /** Round-7 motion level: 'ambient' = everything, 'moments' = one-shot
+   * effects only (no drift loop), 'off' = no motion at all. The OS-level
+   * prefers-reduced-motion always wins (see useMotionMode). */
+  motion: 'ambient' as 'ambient' | 'moments' | 'off',
   /** Seconds the "block mined" flash stays visible. */
   minedFlashSeconds: 6,
   defaultDetail: 'beginner' as 'beginner' | 'detailed',
