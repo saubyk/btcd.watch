@@ -381,7 +381,8 @@ Server → client:
     "arrivals": [                       // newest first, capped at 12
       { "txid": "hex", "amountSats": 4250000, "feeRateSatPerVb": 8.1,
         "vsize": 141, "time": 1735000000 }
-    ] } }
+    ],
+    "inflowTxPerMin": 240.0 } }         // raw tx-accepted rate, 60s window
 
 { "type": "block", "data": { "height": 513, "txCount": 3102 } }
 
@@ -402,7 +403,10 @@ Emission rules:
   on tx-accepted notifications coalesced to at most one push per 2s. Arrivals originate from
   btcd's `notifynewtransactions` verbose payload (txid + gross output amount); fee rate and
   vsize join from the next mempool-snapshot refresh, so an arrival appears within ~a second.
-  Entries that never resolve (mined/evicted first) are skipped and pruned.
+  Entries that never resolve (mined/evicted first) are skipped and pruned. `inflowTxPerMin`
+  counts every tx-accepted notification (rotating 10s buckets, 60s rolling window) — unlike
+  the capped arrivals list it doesn't undercount bursts; it drives the queue bar's particle
+  stream, whose density scales with real traffic.
 - `block`: once per connected block, after a `getblock` for the tx count — drives the landing
   "block mined" flash.
 - `tx`: immediately on `watch` (current state), on every new block for each watched txid, and on
@@ -444,6 +448,14 @@ A single event-loop goroutine owns all shared state — no mutexes on hot paths:
 
 A singleton wrapper: exponential-backoff reconnect (1 s → 30 s cap), and **replays all active
 watch subscriptions** on every reopen, so a dropped connection never silently loses a watch.
+
+Round-7 motion (queue drift / particle stream / block detach) hangs off these pushes: each
+`mempool` push is one particle "tick" (burst size from `inflowTxPerMin`), each `block` push
+plays the detach-and-land effect once, keyed by height. The first push after a null mempool
+(initial load, reconnect) is treated as a baseline snapshot — no burst. A build-time
+`appConfig.motion` level (`ambient` | `moments` | `off`) gates the effects, and
+`prefers-reduced-motion` both collapses all CSS animation globally and stops the JS from
+mounting effect nodes at all (`useMotionMode`).
 
 ### Sequence: search flow
 

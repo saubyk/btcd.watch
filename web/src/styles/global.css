@@ -350,6 +350,58 @@ input::placeholder {
 .bp-queue-seg--4 {
   background: #efe3d2;
 }
+/* Round-7 motion. Ambient drift inside the filled bar (the bar's
+   overflow:hidden clips the stripes). */
+.bp-queue-drift {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.22) 0 3px,
+    transparent 3px 23px
+  );
+  background-size: 46px 100%;
+  animation: bpDrift 4s linear infinite;
+  pointer-events: none;
+}
+/* A transaction gliding into the tail of the line (duration/delay are
+   per-particle inline styles). */
+.bp-queue-join {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: #d9c6a6;
+  animation-name: bpJoin;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+  pointer-events: none;
+}
+/* The next-block chunk a mined block carries off the front of the
+   track — the track must not clip (no overflow rule on it). */
+.bp-queue-detach {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 12px 0 0 12px;
+  background: linear-gradient(90deg, #e07d05, #f7931a);
+  animation: bpDetach 1.2s ease-in forwards;
+  pointer-events: none;
+}
+/* …landing as a fresh block just left of the track. */
+.bp-queue-land {
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 5px;
+  background: #211b14;
+  animation: bpLand 1.8s ease forwards;
+  pointer-events: none;
+}
 .bp-queue-mark {
   position: absolute;
   top: -7px;

@@ -46,6 +46,8 @@ func (s *Service) NoteArrival(raw *btcjson.TxRawResult) {
 	}
 
 	now := time.Now()
+	s.inflow.note(now)
+
 	s.arrivalsMu.Lock()
 	buf := make([]arrival, 0, arrivalsCap)
 	buf = append(buf, arrival{txid: raw.Txid, amountSats: amount, seen: now})
@@ -64,11 +66,13 @@ func (s *Service) NoteArrival(raw *btcjson.TxRawResult) {
 	s.mempool.MarkDirty()
 }
 
-// MempoolUpdate is the live-mempool WS payload: the queue histogram plus
-// the recent arrivals whose fee data has resolved.
+// MempoolUpdate is the live-mempool WS payload: the queue histogram, the
+// recent arrivals whose fee data has resolved, and the raw acceptance
+// rate over the last minute (drives the queue-bar particle stream).
 type MempoolUpdate struct {
-	Queue    *Queue    `json:"queue"`
-	Arrivals []Arrival `json:"arrivals"`
+	Queue          *Queue    `json:"queue"`
+	Arrivals       []Arrival `json:"arrivals"`
+	InflowTxPerMin float64   `json:"inflowTxPerMin"`
 }
 
 // computeMempoolUpdate assembles the payload from one consistent snapshot
@@ -99,5 +103,9 @@ func (s *Service) computeMempoolUpdate() (*MempoolUpdate, error) {
 			Time:            entry.Time,
 		})
 	}
-	return &MempoolUpdate{Queue: queue, Arrivals: arrivals}, nil
+	return &MempoolUpdate{
+		Queue:          queue,
+		Arrivals:       arrivals,
+		InflowTxPerMin: s.inflow.ratePerMin(time.Now()),
+	}, nil
 }
