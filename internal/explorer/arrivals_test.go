@@ -35,6 +35,11 @@ func TestMempoolUpdateResolvesArrivals(t *testing.T) {
 	if len(update.Arrivals) != 2 {
 		t.Fatalf("arrivals = %d, want 2", len(update.Arrivals))
 	}
+	// Both accepts were counted moments ago, so the young-window floor
+	// (10s) yields 2 tx over 10s.
+	if update.InflowTxPerMin != 12 {
+		t.Errorf("inflow = %v tx/min, want 12", update.InflowTxPerMin)
+	}
 	// Newest first.
 	got := update.Arrivals[0]
 	if got.Txid != hexID("second") || got.FeeRateSatPerVb != 3 ||
