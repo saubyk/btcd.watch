@@ -42,29 +42,22 @@ type Block struct {
 	HasMore    bool      `json:"hasMore"`
 }
 
-// BlockFlash is the "block mined" WS push payload for the landing banner.
-type BlockFlash struct {
-	Height  int64 `json:"height"`
-	TxCount int   `json:"txCount"`
-}
+// BlockFlash is the "block mined" WS push payload: the new block as a
+// ribbon tile. The landing banner counts the transactions it took out of
+// the queue (all but the coinbase, which was never in line), and the
+// mined-blocks ribbon prepends the tile — so the tile lands with the
+// flash instead of waiting for the next stats refresh.
+type BlockFlash = RecentBlock
 
-// BlockFlash reports how many transactions the announced block pulled out
-// of the mempool queue. Keyed by hash so a reorg can't swap in a
-// different block than the one notified.
+// BlockFlash describes the announced block. Keyed by hash so a reorg
+// can't swap in a different block than the one notified.
 func (s *Service) BlockFlash(hashStr string) (*BlockFlash, error) {
-	hash, err := chainhash.NewHashFromStr(hashStr)
+	entry, err := s.recentEntry(hashStr)
 	if err != nil {
 		return nil, err
 	}
-	raw, err := s.backend.GetBlockVerbose(hash)
-	if err != nil {
-		return nil, err
-	}
-	// The coinbase was never in the queue — don't count it.
-	return &BlockFlash{
-		Height:  raw.Height,
-		TxCount: max(len(raw.Tx)-1, 0),
-	}, nil
+	block := entry.block
+	return &block, nil
 }
 
 // BlockByHeight resolves a height to its hash and derives the payload.

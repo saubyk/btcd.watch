@@ -24,6 +24,12 @@ type mockBackend struct {
 	mempoolFetches int
 	searchFetches  int
 
+	// blockFetches counts GetBlockVerbose per hash. Guarded because the
+	// live-cache refresh reads blocks from a background goroutine while
+	// a test inspects the counts.
+	blockMu      sync.Mutex
+	blockFetches map[string]int
+
 	// errAll, when set via failAll, fails the calls the live-cache
 	// refresh depends on — simulates the node going away between
 	// refreshes. Mutex-guarded: tests flip it while background refresh
@@ -53,6 +59,8 @@ func newMockBackend() *mockBackend {
 		mempool:   make(map[string]btcjson.GetRawMempoolVerboseResult),
 		history:   make(map[string][]*btcjson.SearchRawTransactionsResult),
 		txFetches: make(map[string]int),
+
+		blockFetches: make(map[string]int),
 	}
 }
 
@@ -98,7 +106,18 @@ func (m *mockBackend) GetBlockCount() (int64, error) {
 	return m.tip, nil
 }
 
+// blockFetchCount reports how often GetBlockVerbose read a block.
+func (m *mockBackend) blockFetchCount(hash string) int {
+	m.blockMu.Lock()
+	defer m.blockMu.Unlock()
+	return m.blockFetches[hash]
+}
+
 func (m *mockBackend) GetBlockVerbose(blockHash *chainhash.Hash) (*btcjson.GetBlockVerboseResult, error) {
+	m.blockMu.Lock()
+	m.blockFetches[blockHash.String()]++
+	m.blockMu.Unlock()
+
 	b, ok := m.blocks[blockHash.String()]
 	if !ok {
 		return nil, &btcjson.RPCError{

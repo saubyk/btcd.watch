@@ -1,6 +1,7 @@
 package explorer
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,19 +12,49 @@ import (
 )
 
 // installChain builds tip headers with the given spacing so the interval
-// measurement has data.
+// measurement has data, plus the matching blocks (linked by previous
+// hash, carrying blockTxCount transactions each) the mined-blocks ribbon
+// walks back through.
 func installChain(m *mockBackend, tip int64, spacing time.Duration) {
 	now := time.Now().Unix()
 	for h := int64(0); h <= tip; h++ {
-		hash := hexID("blk" + string(rune('A'+h%26)) + string(rune('a'+h/26%26)))
+		hash := chainHash(h)
+		blockTime := now - (tip-h)*int64(spacing.Seconds())
 		m.hashes[h] = hash
 		m.headers[hash] = &btcjson.GetBlockHeaderVerboseResult{
 			Hash:   hash,
 			Height: int32(h),
-			Time:   now - (tip-h)*int64(spacing.Seconds()),
+			Time:   blockTime,
 		}
+		txs := make([]string, blockTxCount(h))
+		for i := range txs {
+			txs[i] = hexID("tx" + string(rune('a'+h%26)) + string(rune('a'+i%26)))
+		}
+		block := &btcjson.GetBlockVerboseResult{
+			Hash:   hash,
+			Height: h,
+			Time:   blockTime,
+			Tx:     txs,
+		}
+		if h > 0 {
+			block.PreviousHash = chainHash(h - 1)
+		}
+		m.blocks[hash] = block
 	}
 	m.tip = tip
+}
+
+// chainHash is the fixture hash at a height. It encodes the height
+// directly: hexID's cheap mixing collides for labels 16 apart, which
+// silently aliased blocks in a chain longer than 16.
+func chainHash(height int64) string {
+	return fmt.Sprintf("%064x", height+1)
+}
+
+// blockTxCount varies per height so ribbon assertions can tell the tiles
+// apart.
+func blockTxCount(height int64) int {
+	return 1 + int(height%5)
 }
 
 func TestStats(t *testing.T) {
