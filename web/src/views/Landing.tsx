@@ -45,6 +45,7 @@ export function Landing({
           stats={data.stats}
           mempool={data.mempool}
           minedFlash={data.minedFlash}
+          blocks={data.blocks}
           onSearch={onSearch}
         />
       )}

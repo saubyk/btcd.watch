@@ -2,15 +2,16 @@ import { useRef, useState, type Dispatch } from 'react'
 
 import { api } from '../api/client'
 import type { Block, BlockTx, Stats } from '../api/types'
+import { appConfig } from '../appConfig'
 import { CopyIcon } from '../components/Icons'
 import { BackButton, StatTile } from '../components/ResultParts'
 import { useCopy } from '../components/Toast'
-import { useCountdown } from '../hooks/useCountdown'
 import { useLoadMore } from '../hooks/useLoadMore'
 import { useMotionMode } from '../hooks/useMotion'
+import { useNow } from '../hooks/useNow'
 import {
   formatBtc,
-  formatEtaShort,
+  formatMinedAgo,
   formatNumber,
   formatRelative,
   formatTimestamp,
@@ -18,9 +19,10 @@ import {
 } from '../lib/format'
 import type { Action } from '../state'
 
-/** "· the newest block — just mined" → "settling in" → "permanent". */
+/** "· the newest block" → "settling in" → "permanent". Round 8 dropped
+ * "— just mined": the mined line right below it counts up. */
 function depthLabel(depth: number): string {
-  if (depth === 0) return '· the newest block — just mined'
+  if (depth === 0) return '· the newest block'
   if (depth < 6) {
     return `· ${depth} ${depth === 1 ? 'block' : 'blocks'} deep — settling in`
   }
@@ -41,6 +43,7 @@ export function BlockView({
   onHome: () => void
 }) {
   const copy = useCopy()
+  const now = useNow(appConfig.minedAgoRefreshSeconds * 1000)
 
   // Live depth: prefer the pushed tip so the view flips from "newest"
   // to "1 block deep" (and grows a next-button) the moment a block is
@@ -94,7 +97,11 @@ export function BlockView({
             <span className="bp-amount-fiat">{depthLabel(depth)}</span>
           </div>
           <div className="bp-balance-caption">
-            Mined {formatRelative(block.time)} · {formatTimestamp(block.time)}
+            {/* At the tip the age is the headline number, so it uses the
+                minute-resolution copy the hero pill shares. */}
+            Mined{' '}
+            {atTip ? formatMinedAgo(block.time, now) : formatRelative(block.time)}{' '}
+            · {formatTimestamp(block.time)}
           </div>
 
           <div className="bp-address-row bp-block-hash-row">
@@ -132,7 +139,7 @@ export function BlockView({
               <span />
             )}
             {atTip
-              ? stats && <TipPill stats={stats} />
+              ? <TipPill time={block.time} now={now} />
               : (
                   <button
                     className="bp-block-nav-btn"
@@ -173,16 +180,15 @@ export function BlockView({
 }
 
 /** At the tip the next-button's place holds a live pill sharing the
- * hero countdown: the next block is on its way. */
-function TipPill({ stats }: { stats: Stats }) {
+ * hero pill's copy: how long ago this block was mined. */
+function TipPill({ time, now }: { time: number; now: number }) {
   const motionOn = useMotionMode() !== 'off'
-  const eta = useCountdown(stats.nextBlockEtaSeconds, stats, motionOn)
   return (
     <span className="bp-block-tip-pill">
       <span
         className={`bp-block-tip-dot${motionOn ? ' bp-pulse-slow' : ''}`}
       />
-      Newest block — next one in {formatEtaShort(eta)}
+      Newest block — mined {formatMinedAgo(time, now)}
     </span>
   )
 }

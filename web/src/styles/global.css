@@ -479,6 +479,131 @@ input::placeholder {
   color: var(--bp-orange-deep);
 }
 
+/* ===== Round-8 "blocks already mined" ribbon =====
+   Sits directly under the fee legend, inside the mempool card. Newest is
+   on the LEFT so a block leaving the front of the queue lands under
+   where it left; the "older →" caption resolves the reading direction. */
+.bp-ribbon {
+  position: relative;
+  margin-top: 24px;
+}
+.bp-ribbon-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 9px;
+}
+.bp-ribbon-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bp-text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.bp-ribbon-hint {
+  font-size: 12px;
+  color: var(--bp-text-muted-2);
+}
+.bp-ribbon-row {
+  display: flex;
+  gap: 7px;
+  align-items: stretch;
+}
+.bp-ribbon-tile {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  /* Tiles clip rather than reflow: while the departing tile is still at
+     full width the row is briefly one tile wider, and on a phone that
+     would wrap "2,940 tx" and jolt the row's height mid-animation. */
+  overflow: hidden;
+  white-space: nowrap;
+  background: #faf4ea;
+  border: 1.5px solid var(--bp-divider-3);
+  border-radius: 12px;
+  padding: 10px 4px;
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+.bp-ribbon-tile:hover {
+  border-color: #e0cba8;
+  background: var(--bp-bg);
+}
+.bp-ribbon-tile--newest {
+  background: var(--bp-green-tint);
+  border-color: var(--bp-green-border);
+}
+.bp-ribbon-tile--pop {
+  /* Delayed so the tile appears exactly as the flying block lands. */
+  animation: bpBlkPop 0.5s ease 0.75s both;
+}
+/* The departing tile is a real in-flow tile, never an absolute ghost:
+   it can't overlap a live tile, and it holds the animation's end state
+   at rest so only the live tiles are visible between blocks. */
+.bp-ribbon-tile--leaving {
+  animation: bpBlkSqueeze 0.7s ease-in 0.75s both;
+}
+.bp-ribbon-height {
+  font-family: var(--bp-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bp-text);
+}
+.bp-ribbon-age {
+  font-size: 11px;
+  color: var(--bp-text-muted-2);
+}
+.bp-ribbon-tx {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bp-orange-text);
+}
+.bp-ribbon-captions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--bp-text-muted-2);
+  margin-top: 8px;
+}
+/* The mined block itself, in flight from the front of the queue bar. */
+.bp-ribbon-drop {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bp-dark);
+  color: #fff;
+  border-radius: 12px;
+  font-family: var(--bp-mono);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 8px 20px rgba(33, 27, 20, 0.28);
+  animation: bpBlkDrop 1.15s cubic-bezier(0.45, 0, 0.5, 1) both;
+  pointer-events: none;
+  z-index: 4;
+}
+/* Text under the bar steps out of the flying block's way. */
+.bp-dim-in-flight {
+  opacity: 0.3;
+}
+.bp-queue-captions,
+.bp-queue-legend {
+  transition: opacity 0.5s ease;
+}
+
 /* ===== "Just joined the line" feed ===== */
 .bp-feed {
   margin-top: 22px;

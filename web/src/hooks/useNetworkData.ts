@@ -5,10 +5,12 @@ import type {
   BlockFlash,
   FeeEstimate,
   MempoolUpdate,
+  RecentBlock,
   Stats,
 } from '../api/types'
 import { live } from '../api/ws'
 import { appConfig } from '../appConfig'
+import { mergeRecentBlocks } from '../lib/blocks'
 
 export interface NetworkData {
   stats: Stats | null
@@ -18,6 +20,9 @@ export interface NetworkData {
   mempool: MempoolUpdate | null
   /** Recently mined block, cleared after minedFlashSeconds. */
   minedFlash: BlockFlash | null
+  /** Mined-blocks ribbon, newest first: the stats window with the
+   * per-block pushes merged in (round 8). */
+  blocks: RecentBlock[]
   /** True while the backend (and its node) are reachable. */
   connected: boolean
 }
@@ -35,6 +40,7 @@ export function useNetworkData(): NetworkData {
     fees: null,
     mempool: null,
     minedFlash: null,
+    blocks: [],
     connected: false,
   })
   const lastHeight = useRef(0)
@@ -52,7 +58,14 @@ export function useNetworkData(): NetworkData {
 
   useEffect(() => {
     const applyStats = (stats: Stats) => {
-      setData((prev) => ({ ...prev, stats, connected: true }))
+      setData((prev) => ({
+        ...prev,
+        stats,
+        connected: true,
+        // The stats window is authoritative but only as fresh as the
+        // last live-cache refresh; blocks pushed since then stay.
+        blocks: mergeRecentBlocks(stats.recentBlocks ?? [], prev.blocks),
+      }))
       if (stats.blockHeight !== lastHeight.current) {
         lastHeight.current = stats.blockHeight
         void refreshFees()
@@ -109,7 +122,13 @@ export function useNetworkData(): NetworkData {
 
     let flashTimer: ReturnType<typeof setTimeout> | undefined
     const offBlock = live.onBlock((minedFlash) => {
-      setData((prev) => ({ ...prev, minedFlash }))
+      // The new tile has to be in the list for this render, not the next
+      // stats push — the ribbon animation is choreographed to it.
+      setData((prev) => ({
+        ...prev,
+        minedFlash,
+        blocks: mergeRecentBlocks([minedFlash], prev.blocks),
+      }))
       clearTimeout(flashTimer)
       flashTimer = setTimeout(() => {
         setData((prev) => ({ ...prev, minedFlash: null }))
