@@ -155,6 +155,14 @@ type Service struct {
 	arrivals   []arrival
 	inflow     inflowCounter
 
+	// Cached mined-blocks ribbon window, keyed by the tip it ends at
+	// (see recent.go). recentCache holds the blocks themselves, which
+	// are immutable, so only the window needs rebuilding.
+	recentMu    sync.Mutex
+	recentList  []RecentBlock
+	recentHead  string
+	recentCache *lruCache[recentEntry]
+
 	// Cached live feeds, recomputed in the background (see live.go).
 	liveMu        sync.Mutex
 	live          liveData
@@ -172,16 +180,19 @@ func NewService(backend node.Backend, cfg Config) *Service {
 		maxScan = 2000
 	}
 	return &Service{
-		backend:   backend,
-		params:    cfg.Params,
-		mempool:   NewMempool(backend),
-		priceUSD:  cfg.Price,
-		floors:    cfg.Floors,
-		maxScan:   maxScan,
-		prevouts:  newLRU[prevout](4096),
-		headers:   newLRU[*btcjson.GetBlockHeaderVerboseResult](1024),
-		totals:    newLRU[addressTotals](256),
-		liveEvery: liveRefreshEvery,
+		backend:  backend,
+		params:   cfg.Params,
+		mempool:  NewMempool(backend),
+		priceUSD: cfg.Price,
+		floors:   cfg.Floors,
+		maxScan:  maxScan,
+		prevouts: newLRU[prevout](4096),
+		headers:  newLRU[*btcjson.GetBlockHeaderVerboseResult](1024),
+		totals:   newLRU[addressTotals](256),
+		// A little deeper than the ribbon window, so the blocks pushed
+		// as flashes are still cached when the walk reaches them.
+		recentCache: newLRU[recentEntry](64),
+		liveEvery:   liveRefreshEvery,
 		// Until the first check lands, gated networks are assumed to be
 		// syncing: the safe answer while the node's state is unknown.
 		syncing: tipAgeGated(cfg.Params),

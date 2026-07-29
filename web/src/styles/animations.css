@@ -132,6 +132,67 @@
   }
 }
 
+/* Round-8 mined-blocks ribbon: the block arcs out of the front of the
+   queue and drops onto its new tile… */
+@keyframes bpBlkDrop {
+  0% {
+    left: 8px;
+    top: -112px;
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  14% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  55% {
+    left: -8px;
+    top: -40px;
+  }
+  88% {
+    left: 0;
+    top: 26px;
+    opacity: 1;
+    transform: scale(0.92);
+  }
+  100% {
+    left: 0;
+    top: 28px;
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+/* …the tile pops in under it as it lands… */
+@keyframes bpBlkPop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+/* …and the oldest tile squeezes off the right end, in flow, so the row
+   closes the gap behind it. */
+@keyframes bpBlkSqueeze {
+  0% {
+    flex-grow: 1;
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    flex-grow: 0.001;
+    opacity: 0;
+    transform: translateY(28px) rotate(7deg);
+    margin-left: -7px;
+  }
+}
+
 .bp-pulse-slow {
   animation: bpPulse 2s ease-in-out infinite;
 }

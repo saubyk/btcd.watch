@@ -157,14 +157,22 @@ export interface MempoolUpdate {
   inflowTxPerMin: number
 }
 
-export interface BlockFlash {
+/** One tile of the mined-blocks ribbon. `txCount` is the whole block,
+ * matching the block view the tile opens. */
+export interface RecentBlock {
   height: number
   txCount: number
+  time: number
 }
+
+/** The "block mined" push is the new block's ribbon tile (round 8). */
+export type BlockFlash = RecentBlock
 
 export interface Stats {
   network: string
   blockHeight: number
+  /** When the tip was mined; 0 when the node couldn't be read. */
+  tipTime: number
   /** Node still in initial block download — lookups are gated off. */
   syncing: boolean
   mempool: { txCount: number; bytes: number }
@@ -173,4 +181,6 @@ export interface Stats {
   avgBlockIntervalSeconds: number
   halving: { blocksRemaining: number; etaSeconds: number }
   price: { usd: number; source: string; updatedAt: number } | null
+  /** Mined-blocks ribbon window, newest first; null while unavailable. */
+  recentBlocks: RecentBlock[] | null
 }

@@ -11,6 +11,9 @@ export const appConfig = {
   motion: 'ambient' as 'ambient' | 'moments' | 'off',
   /** Seconds the "block mined" flash stays visible. */
   minedFlashSeconds: 6,
+  /** Round-8: how often "last block mined N ago" and the ribbon tile
+   * ages re-read the clock, so they stay honest between blocks. */
+  minedAgoRefreshSeconds: 30,
   defaultDetail: 'beginner' as 'beginner' | 'detailed',
   /** Seconds between REST watch polls on a pending tx. */
   watchPollSeconds: 15,

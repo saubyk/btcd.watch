@@ -6,6 +6,7 @@ import type {
   MempoolUpdate,
   Queue,
   QueueBand,
+  RecentBlock,
   Stats,
 } from '../api/types'
 import { useMediaQuery } from '../hooks/useMediaQuery'
@@ -16,6 +17,7 @@ import {
   formatEtaShort,
   formatNumber,
 } from '../lib/format'
+import { MinedRibbon } from './MinedRibbon'
 import { Marker, QueueSegments } from './QueueBar'
 import { DetachFx, DriftOverlay, JoinParticles, trafficLevel } from './QueueMotion'
 import { TweenedCount } from './TweenedCount'
@@ -28,6 +30,33 @@ const FEED_ROWS = 6
  * colored bar — aesthetics over literal proportion at the extremes. */
 const MIN_BAR_FRACTION = 0.28
 const MAX_CUTOFF_FRACTION = 0.6
+
+/** How long the mined block's flight down into the ribbon lasts (the
+ * design's ~1.5s), and so how long the text under the bar stays dimmed
+ * out of its way. */
+const FLIGHT_MS = 1500
+
+/** Transactions the block took out of the line: all of them but the
+ * coinbase, which was never queued. */
+function queueTxCount(flash: BlockFlash): number {
+  return Math.max(flash.txCount - 1, 0)
+}
+
+/**
+ * The height of the block currently flying into the ribbon, or null.
+ * Distinct from the flash banner's lifetime: the banner stays up to be
+ * read, the flight is over in FLIGHT_MS.
+ */
+function useFlyingBlock(height: number | null): number | null {
+  const [flying, setFlying] = useState<number | null>(null)
+  useEffect(() => {
+    if (height === null) return
+    setFlying(height)
+    const timer = setTimeout(() => setFlying(null), FLIGHT_MS)
+    return () => clearTimeout(timer)
+  }, [height])
+  return flying
+}
 
 /** "15+ sat/vB" for the open-ended front band, "10–15" after. */
 function bandLabel(band: QueueBand): string {
@@ -71,14 +100,26 @@ export function MempoolQueue({
   stats,
   mempool,
   minedFlash,
+  blocks,
   onSearch,
 }: {
   stats: Stats | null
   mempool: MempoolUpdate | null
   minedFlash: BlockFlash | null
+  blocks: RecentBlock[]
   onSearch: (q: string) => void
 }) {
   const motion = useMotionMode()
+  const isNarrow = useMediaQuery('(max-width: 639px)')
+  // Round 8: the block currently landing in the ribbon — it drives the
+  // flight, the tile pop-in and the dim below. Shorter-lived than the
+  // flash banner, which stays up long enough to read.
+  const flying = useFlyingBlock(
+    motion === 'off' ? null : (minedFlash?.height ?? null),
+  )
+  // Only the flying block needs the text out of its way, and it doesn't
+  // fly on phones — so nothing dims there either.
+  const dim = flying !== null && !isNarrow ? ' bp-dim-in-flight' : ''
 
   // Particle bursts key off a per-push tick. The first push after a null
   // (initial load or a reconnect snapshot) is a baseline, not an arrival
@@ -142,9 +183,9 @@ export function MempoolQueue({
             <span className="bp-mined-flash-emoji">⛏️</span>
             <span className="bp-mined-flash-text">
               Block {formatNumber(minedFlash.height)} just mined —{' '}
-              {formatNumber(minedFlash.txCount)}{' '}
-              {minedFlash.txCount === 1 ? 'transaction' : 'transactions'} left
-              the front of the line
+              {formatNumber(queueTxCount(minedFlash))}{' '}
+              {queueTxCount(minedFlash) === 1 ? 'transaction' : 'transactions'}{' '}
+              left the front of the line
             </span>
           </div>
         )}
@@ -179,7 +220,7 @@ export function MempoolQueue({
           </div>
         </div>
 
-        <div className="bp-queue-captions">
+        <div className={`bp-queue-captions${dim}`}>
           <span>← Front of line (paid more)</span>
           <span>
             Whole line clears in{' '}
@@ -191,7 +232,7 @@ export function MempoolQueue({
           </span>
         </div>
 
-        <div className="bp-queue-legend">
+        <div className={`bp-queue-legend${dim}`}>
           {queue.bands.map((band, i) => (
             <span key={band.minSatPerVb} className="bp-legend-item">
               <span className={`bp-legend-swatch bp-queue-seg--${i}`} />
@@ -199,6 +240,14 @@ export function MempoolQueue({
             </span>
           ))}
         </div>
+
+        <MinedRibbon
+          blocks={blocks}
+          flyingHeight={flying}
+          narrow={isNarrow}
+          motionOn={motion !== 'off'}
+          onSearch={onSearch}
+        />
 
         <ArrivalsFeed
           queue={queue}

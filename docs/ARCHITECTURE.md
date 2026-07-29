@@ -268,6 +268,7 @@ values; `503 node_unavailable` only before the first-ever compute (warmed on nod
 ```json
 {
   "blockHeight": 512,
+  "tipTime": 1735000000,              // when the tip was mined; 0 if its header was unreadable
   "mempool": { "txCount": 14, "bytes": 4096 },
   "queue": {
     "txCount": 14,
@@ -286,7 +287,11 @@ values; `503 node_unavailable` only before the first-ever compute (warmed on nod
   "nextBlockEtaSeconds": 420,
   "avgBlockIntervalSeconds": 610,
   "halving": { "blocksRemaining": 88, "etaSeconds": 53680 },
-  "price": { "usd": 98000, "source": "coingecko" | "static", "updatedAt": 1735000000 }
+  "price": { "usd": 98000, "source": "coingecko" | "static", "updatedAt": 1735000000 },
+  "recentBlocks": [                   // mined-blocks ribbon, newest first (null if unreadable)
+    { "height": 512, "txCount": 2940, "time": 1735000000 },
+    { "height": 511, "txCount": 2711, "time": 1734999400 }
+  ]
 }
 ```
 
@@ -295,6 +300,15 @@ values; `503 node_unavailable` only before the first-ever compute (warmed on nod
   than 2 headers are available (fresh regtest chain).
 - `halving`: from `params.SubsidyReductionInterval` (150 on regtest, 210 000 on mainnet) —
   network-correct by construction.
+- `tipTime` / `recentBlocks`: round 8. `tipTime` backs the "last block mined N ago" copy that
+  replaced the next-block countdown in the hero pill and the block view's tip pill —
+  `nextBlockEtaSeconds` stays, but only the mempool card's fee takeaway still reads it.
+  `recentBlocks` is the "blocks already mined" ribbon: a 10-block window walked back from the
+  tip by previous-hash and cached per block hash (`explorer/recent.go`), so a refresh costs one
+  `getblockhash` when the tip is unchanged and one `getblock` per new block. Blocks are
+  immutable, so only the window is rebuilt; a reorg changes the hashes and refills it by
+  itself. Best-effort: a failed read yields the part already gathered rather than failing the
+  whole payload, and the short window is not cached so the next refresh retries.
 - `queue`: the landing-page mempool visualization, from the shared snapshot. Five fixed display
   bands (15+, 10–15, 6–10, 4–6, 1–4 sat/vB; sub-1 entries lump into the last). The cutoff walks
   entries by descending feerate until one block's worth of vbytes (1 MvB) is consumed.
@@ -395,7 +409,7 @@ Server → client:
     ],
     "inflowTxPerMin": 240.0 } }         // raw tx-accepted rate, 60s window
 
-{ "type": "block", "data": { "height": 513, "txCount": 3102 } }
+{ "type": "block", "data": { "height": 513, "txCount": 3102, "time": 1735000000 } }
 
 { "type": "tx", "txid": "hex",
   "data": { "status": "pending" | "confirmed",
@@ -418,8 +432,12 @@ Emission rules:
   counts every tx-accepted notification (rotating 10s buckets, 60s rolling window) — unlike
   the capped arrivals list it doesn't undercount bursts; it drives the queue bar's particle
   stream, whose density scales with real traffic.
-- `block`: once per connected block, after a `getblock` for the tx count — drives the landing
-  "block mined" flash.
+- `block`: once per connected block, after a `getblock` — drives the landing "block mined"
+  flash. Round 8 made the payload the block's own ribbon tile (height, whole-block tx count,
+  mined time), read through the same per-hash cache the ribbon walks, so announcing a block
+  costs no extra RPC and the new tile is in the client's list in time for its landing
+  animation instead of waiting on the next stats refresh. The flash banner subtracts the
+  coinbase, which was never in the queue.
 - `tx`: immediately on `watch` (current state), on every new block for each watched txid, and on
   a 10-second ticker while the watched tx is still pending (keeps queue position / ETA fresh).
 
@@ -470,11 +488,24 @@ mounting effect nodes at all (`useMotionMode`).
 
 The round-7 "heartbeat" is display-side only: mempool counts shown in the stats bar and the
 queue card ease toward the pushed value (`useTweenedNumber`; the raw count still drives the
-bar width), the "next block in" pill ticks down locally between stats pushes and re-anchors
-on every push (`useCountdown` — the on-block push resets it), the block-height tile pops
-once per height change, new feed rows land with a fading glow, and the confirmation squares
-stagger in on the just-watched confirmed view. All of it keys off the same pushes above —
-no extra wire traffic.
+bar width), the block-height tile pops once per height change, new feed rows land with a
+fading glow, and the confirmation squares stagger in on the just-watched confirmed view. All
+of it keys off the same pushes above — no extra wire traffic.
+
+Round 8 replaced the forward-looking countdown with elapsed time — "last block mined N min
+ago", from `stats.tipTime` (block view: the block's own timestamp), re-read on a 30s clock
+(`useNow`) so it stays honest between blocks — and added the mined-blocks ribbon under the
+fee legend (`MinedRibbon`). The ribbon's list lives on the client: `useNetworkData` merges
+the authoritative `stats.recentBlocks` window with the blocks arriving as `block` pushes
+(`mergeRecentBlocks`, newest-first, capped at 10), so the pushed tile is present for its
+animation and the server still corrects the window. One `block` push choreographs four
+things for ~1.5s: the block flies out of the front of the queue (`bpBlkDrop`, suppressed
+below 640px), the new tile pops in as it lands (`bpBlkPop`, 0.75s delay), the oldest tile
+squeezes off the right end (`bpBlkSqueeze`, an in-flow 7th tile that holds its collapsed end
+state at rest, so only 6 tiles — 3 on phones — show between blocks), and the caption and
+legend rows dim out of the flight path. Tiles are keyed by height, so React remounting them
+is what replays the animations; the departing tile only joins the row after the first block
+lands, so a first paint never plays a tile out.
 
 ### Sequence: search flow
 

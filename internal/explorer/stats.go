@@ -27,8 +27,11 @@ type PriceStats struct {
 // Stats is the /api/stats payload. Price is null when no price source is
 // available.
 type Stats struct {
-	Network                 string       `json:"network"`
-	BlockHeight             int64        `json:"blockHeight"`
+	Network     string `json:"network"`
+	BlockHeight int64  `json:"blockHeight"`
+	// TipTime is when the tip block was mined; 0 when the header could
+	// not be read. It backs the "last block mined N ago" copy.
+	TipTime                 int64        `json:"tipTime"`
 	Syncing                 bool         `json:"syncing"`
 	Mempool                 MempoolStats `json:"mempool"`
 	Queue                   *Queue       `json:"queue"`
@@ -36,6 +39,9 @@ type Stats struct {
 	AvgBlockIntervalSeconds int64        `json:"avgBlockIntervalSeconds"`
 	Halving                 HalvingStats `json:"halving"`
 	Price                   *PriceStats  `json:"price"`
+	// RecentBlocks is the mined-blocks ribbon window, newest first; null
+	// while no block could be read.
+	RecentBlocks []RecentBlock `json:"recentBlocks"`
 }
 
 // syncedMaxTipAge is how far the best block's timestamp may lag the wall
@@ -157,11 +163,23 @@ func (s *Service) computeStats() (*Stats, error) {
 
 	interval := s.avgBlockInterval()
 
+	// One hash lookup serves three consumers: the tip's own timestamp
+	// (mined-ago copy and the ETA below) and the mined-blocks ribbon,
+	// which walks back from it.
+	var tipTime int64
+	var recent []RecentBlock
+	if hash, err := s.backend.GetBlockHash(tip); err == nil {
+		if header, err := s.header(hash.String()); err == nil {
+			tipTime = header.Time
+		}
+		recent = s.recentBlocks(hash.String())
+	}
+
 	// Expected time to the next block: the average interval minus the
 	// tip's age, floored so the pill never reads zero/negative when a
 	// block is overdue.
 	nextEta := interval
-	if tipTime, err := s.headerTimeAt(tip); err == nil {
+	if tipTime > 0 {
 		age := time.Since(time.Unix(tipTime, 0))
 		nextEta = max(interval-age, 5*time.Second)
 	}
@@ -179,6 +197,7 @@ func (s *Service) computeStats() (*Stats, error) {
 	stats := &Stats{
 		Network:     s.params.Name,
 		BlockHeight: tip,
+		TipTime:     tipTime,
 		Syncing:     s.Syncing(),
 		Mempool: MempoolStats{
 			TxCount: len(snapshot),
@@ -191,6 +210,7 @@ func (s *Service) computeStats() (*Stats, error) {
 			BlocksRemaining: blocksRemaining,
 			EtaSeconds:      halvingEta,
 		},
+		RecentBlocks: recent,
 	}
 
 	if q := s.priceUSD(); q.OK {

@@ -2,13 +2,13 @@ import { useRef, useState, type FormEvent } from 'react'
 
 import type { Stats } from '../api/types'
 import { appConfig } from '../appConfig'
-import { useCountdown } from '../hooks/useCountdown'
 import { useMotionMode } from '../hooks/useMotion'
+import { useNow } from '../hooks/useNow'
 import {
   formatCompact,
   formatEta,
-  formatEtaShort,
   formatFiat,
+  formatMinedAgo,
   formatNumber,
 } from '../lib/format'
 import { SearchIcon } from './Icons'
@@ -43,15 +43,20 @@ export function LiveStatusPill({
   return <LivePill stats={stats} />
 }
 
-/** The live branch of the status pill: the ETA counts down locally
- * between pushes and the dot pulses (round-7 heartbeat). */
+/** The live branch of the status pill. Round 8 reports the past instead
+ * of predicting the future: how long ago the tip was mined, ticking up
+ * between blocks (round-7's pulsing dot stays). */
 function LivePill({ stats }: { stats: Stats }) {
   const motionOn = useMotionMode() !== 'off'
-  const eta = useCountdown(stats.nextBlockEtaSeconds, stats, motionOn)
+  const now = useNow(appConfig.minedAgoRefreshSeconds * 1000)
   return (
     <div className="bp-live-pill">
       <span className={`bp-live-dot${motionOn ? ' bp-pulse-slow' : ''}`} />
-      Network live · next block in {formatEtaShort(eta)}
+      Network live
+      {/* No tip timestamp (the node answered, its header didn't) — say
+          nothing rather than a made-up age. */}
+      {stats.tipTime > 0 &&
+        ` · last block mined ${formatMinedAgo(stats.tipTime, now)}`}
     </div>
   )
 }

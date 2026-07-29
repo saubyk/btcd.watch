@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatAgeShort,
+  formatBlockAge,
   formatBtc,
   formatCompact,
   formatEta,
   formatEtaShort,
   formatFiat,
+  formatMinedAgo,
   formatNumber,
   formatRelative,
   truncateMiddle,
@@ -57,6 +59,35 @@ describe('truncateMiddle', () => {
   })
   it('leaves short strings alone', () => {
     expect(truncateMiddle('abcdef')).toBe('abcdef')
+  })
+})
+
+describe('formatMinedAgo', () => {
+  const now = 1_750_000_000_000
+  const secsAgo = (s: number) => now / 1000 - s
+
+  it('renders the round-8 copy rules', () => {
+    expect(formatMinedAgo(secsAgo(0), now)).toBe('less than a minute ago')
+    expect(formatMinedAgo(secsAgo(59), now)).toBe('less than a minute ago')
+    expect(formatMinedAgo(secsAgo(60), now)).toBe('1 min ago')
+    expect(formatMinedAgo(secsAgo(119), now)).toBe('1 min ago')
+    expect(formatMinedAgo(secsAgo(4 * 60), now)).toBe('4 min ago')
+  })
+
+  it('never counts up from a block timestamp ahead of the clock', () => {
+    expect(formatMinedAgo(secsAgo(-300), now)).toBe('less than a minute ago')
+  })
+})
+
+describe('formatBlockAge', () => {
+  const now = 1_750_000_000_000
+  const secsAgo = (s: number) => now / 1000 - s
+
+  it('renders ribbon-tile ages', () => {
+    expect(formatBlockAge(secsAgo(20), now)).toBe('just now')
+    expect(formatBlockAge(secsAgo(12 * 60), now)).toBe('12m ago')
+    expect(formatBlockAge(secsAgo(59 * 60), now)).toBe('59m ago')
+    expect(formatBlockAge(secsAgo(3 * 3600), now)).toBe('3h ago')
   })
 })
 

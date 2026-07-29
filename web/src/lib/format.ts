@@ -65,6 +65,26 @@ export function formatAgeShort(unixSecs: number, nowMs = Date.now()): string {
   return `${Math.round(secs / 60)}m ago`
 }
 
+/** Unix seconds → "less than a minute ago" / "1 min ago" / "7 min ago"
+ * (round-8: how long ago the newest block was mined). */
+export function formatMinedAgo(unixSecs: number, nowMs = Date.now()): string {
+  const mins = Math.floor(
+    Math.max(0, Math.floor(nowMs / 1000) - unixSecs) / 60,
+  )
+  if (mins < 1) return 'less than a minute ago'
+  return `${mins} min ago`
+}
+
+/** Unix seconds → "just now" / "12m ago" / "3h ago" (ribbon tiles). */
+export function formatBlockAge(unixSecs: number, nowMs = Date.now()): string {
+  const mins = Math.floor(
+    Math.max(0, Math.floor(nowMs / 1000) - unixSecs) / 60,
+  )
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  return `${Math.round(mins / 60)}h ago`
+}
+
 /** Seconds → "~45 minutes" / "~2 hours" / "~622 days". */
 export function formatEta(seconds: number): string {
   if (seconds < 90) return '~1 minute'
