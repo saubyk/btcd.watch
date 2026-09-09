@@ -127,10 +127,18 @@ mempool queue moves and Watch mode connects (WS through Cloudflare).
 ## 7. Day-2 operations
 
 - **Upgrades**: tag a release on GitHub → `./deploy/upgrade.sh <tag>`.
-- **Monitoring**: point an uptime monitor (e.g. UptimeRobot) at
-  `https://btcd.watch/api/healthz` — it returns 503 whenever the node
-  connection is down, so one check covers both services. Watch disk on
-  `/var/lib/btcd` (chain + indexes grow steadily) and set an alert at 85%.
+- **Monitoring**: `.github/workflows/healthz.yml` probes
+  `https://btcd.watch/api/healthz` every 10 minutes from GitHub Actions
+  (`deploy/healthz-check.sh` does the check; run it by hand from anywhere)
+  and opens an issue labeled `uptime` when the answer is not HTTP 200 with
+  `status: "ok"` — so a 503 (node connection down) *and* a 200 `syncing`
+  (tip more than 4h old: on mainnet that means btcd stalled, typically a
+  lost sync peer — see the issue body for the recovery command) both
+  alert. The issue closes itself on recovery; at most one is open at a
+  time. GitHub cron can lag and is auto-disabled after 60 days without
+  commits, so `workflow_dispatch` it from the Actions tab if it goes quiet.
+  Watch disk on `/var/lib/btcd` (chain + indexes grow steadily) and set an
+  alert at 85%.
 - **Logs**: `journalctl -fu btcdwatchd`, `journalctl -fu btcd`.
 - **btcd upgrades**: stop `btcdwatchd` first, upgrade/restart `btcd`, wait
   for `healthz` to report reconnect. Never `kill -9` btcd — index recovery
