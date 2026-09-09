@@ -1,0 +1,71 @@
+name: healthz
+
+# Uptime alert for the public deployment. Every 10 minutes, probe
+# https://btcd.watch/api/healthz; if it is not HTTP 200 with status "ok",
+# open a GitHub issue labeled `uptime` (which emails the maintainer). The
+# issue is closed automatically once the check passes again. Only one
+# uptime issue is ever open at a time, so a long outage does not spam.
+#
+# Caveats of GitHub cron: runs can lag 10+ minutes under load, and GitHub
+# disables scheduled workflows in a repo with no commits for 60 days —
+# re-enable it from the Actions tab if that happens.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: healthz
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe healthz
+        id: probe
+        run: |
+          set +e
+          out="$(./deploy/healthz-check.sh https://btcd.watch/api/healthz)"
+          rc=$?
+          set -e
+          echo "$out"
+          echo "healthy=$([ "$rc" -eq 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "reason=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Open or close the uptime issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          HEALTHY: ${{ steps.probe.outputs.healthy }}
+          REASON: ${{ steps.probe.outputs.reason }}
+        run: |
+          gh label create uptime --color B60205 \
+            --description "Automated healthz alert" --force >/dev/null
+          open="$(gh issue list --label uptime --state open --json number \
+            --jq '.[0].number // empty')"
+          now="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          if [ "$HEALTHY" = "true" ]; then
+            if [ -n "$open" ]; then
+              gh issue comment "$open" --body "Recovered at $now: $REASON"
+              gh issue close "$open" --reason completed
+              echo "closed #$open"
+            fi
+          elif [ -z "$open" ]; then
+            gh issue create --label uptime \
+              --title "btcd.watch healthz alert: $(printf '%s' "$REASON" | cut -c1-60)" \
+              --body "$(printf '%s\n\n```\n%s\n```\n\n%s' \
+                "The healthz probe failed at $now." \
+                "$REASON" \
+                "Start with \`journalctl -u btcd -n 40\` on the VPS. A 200 with \`syncing\` on mainnet usually means btcd lost its sync peer: check \`btcctl getpeerinfo\` for a peer with \`syncnode: true\` and, if none, \`btcctl node disconnect <addr>:8333\` to force a re-election. This issue closes itself when the probe passes again.")"
+            echo "opened new uptime issue"
+          else
+            echo "still down, #$open already open"
+          fi
