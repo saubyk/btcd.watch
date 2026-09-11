@@ -163,7 +163,9 @@ mempool queue moves and Watch mode connects (WS through Cloudflare).
 
   Re-run the `install` line after upgrading a release that changes the
   script. If btcd runs as a different user (or its RPC listens without TLS),
-  edit `User=` / `Environment=BTCCTL=` in the service before enabling. Try
+  edit `User=` / `Environment=BTCCTL=` in the service before enabling; units
+  don't read shell profiles, so if btcctl is not on the system PATH (say,
+  `~/go/bin`) `BTCCTL` must be its absolute path. Try
   it by hand first: `sudo -u btcd BTCCTL='btcctl --configfile=/etc/btcd/btcctl.conf' /usr/local/bin/btcd-sync-watchdog.sh --dry-run`
   (a healthy node prints nothing). Roll out in two steps: append
   ` --dry-run` to `ExecStart=` in the copied service for the first day
