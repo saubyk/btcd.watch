@@ -152,6 +152,7 @@ mempool queue moves and Watch mode connects (WS through Cloudflare).
 
   ```sh
   sudo install -m 755 deploy/btcd-sync-watchdog.sh /usr/local/bin/
+  sudo install -d -o btcd -g btcd /var/lib/btcd-sync-watchdog   # state + log; systemd would create it, the manual dry-run below can't
   sudo cp deploy/btcd-sync-watchdog.service deploy/btcd-sync-watchdog.timer /etc/systemd/system/
   # btcctl credentials for the unit's user (rpcuser/rpcpass from btcd.conf):
   printf 'rpcuser=btcdwatch\nrpcpass=<from /etc/btcd/btcd.conf>\nrpccert=/var/lib/btcd/rpc.cert\n' \
@@ -164,7 +165,12 @@ mempool queue moves and Watch mode connects (WS through Cloudflare).
   script. If btcd runs as a different user (or its RPC listens without TLS),
   edit `User=` / `Environment=BTCCTL=` in the service before enabling. Try
   it by hand first: `sudo -u btcd BTCCTL='btcctl --configfile=/etc/btcd/btcctl.conf' /usr/local/bin/btcd-sync-watchdog.sh --dry-run`
-  (a healthy node prints nothing). Every intervention is one line in
+  (a healthy node prints nothing). Roll out in two steps: append
+  ` --dry-run` to `ExecStart=` in the copied service for the first day
+  (`daemon-reload` after editing), then remove it. Dry-run ticks keep the
+  same state as live ones, so a stall during that day uses up the
+  per-stall intervention slots until the height next moves — that is the
+  point of the rehearsal. Every intervention is one line in
   `/var/lib/btcd-sync-watchdog/interventions.log` and in
   `journalctl -t btcd-sync-watchdog`, with the outcome (`recovered` /
   `no-effect`) filled in on the following tick:

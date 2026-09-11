@@ -16,7 +16,8 @@ dir="$STUB_DIR"
 case "$1 ${2:-}" in
     "getblockcount ")   [ -f "$dir/fail" ] && { echo "connection refused" >&2; exit 1; }
                         cat "$dir/height" ;;
-    "getpeerinfo ")     cat "$dir/peers" ;;
+    "getpeerinfo ")     [ -f "$dir/failpeers" ] && { echo "connection refused" >&2; exit 1; }
+                        cat "$dir/peers" ;;
     "node disconnect")  echo "$3" >>"$dir/disconnects" ;;
     *) echo "stub: unexpected: $*" >&2; exit 1 ;;
 esac
@@ -75,7 +76,7 @@ tick 10; check "progress is silent" [ -z "$out" ]
 check "no log file while healthy" [ ! -f "$log" ]
 
 # 2. slow block under the threshold: silent
-tick 50; check "59 min stuck: silent" [ -z "$out" ]
+tick 69; check "59 min stuck: silent" [ -z "$out" ]
 check "no disconnect under threshold" [ "$(disconnects)" = 0 ]
 
 # 3. stall: 60 min stuck, no sync peer → disconnect first OUTBOUND peer
@@ -125,6 +126,15 @@ tick 480; check "btcctl failure exits 1" [ "$rc" = 1 ]
 check "btcctl failure is reported" grep -q 'getblockcount failed' <<<"$out"
 rm "$STUB_DIR/fail"
 tick 490; check "state survived the failure (dry-run outcome settled)" grep -q ' dry-run height=105 .* outcome=no-effect$' "$log"
+
+# 10. getpeerinfo failure mid-stall: exit 1, no disconnect, stall clock kept
+echo 106 >"$STUB_DIR/height"
+tick 500; touch "$STUB_DIR/failpeers"
+tick 570; check "getpeerinfo failure exits 1" [ "$rc" = 1 ]
+check "getpeerinfo failure is reported" grep -q 'getpeerinfo failed' <<<"$out"
+check "getpeerinfo failure: no disconnect" [ "$(disconnects)" = 5 ]
+rm "$STUB_DIR/failpeers"
+tick 580; check "stall clock survived the failure" [ "$(disconnects)" = 6 ]
 
 echo
 if [ "$fails" -eq 0 ]; then echo "sync-watchdog: all checks passed"; else echo "sync-watchdog: $fails check(s) FAILED"; exit 1; fi

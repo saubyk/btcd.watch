@@ -28,7 +28,10 @@
 #      STATE_DIR (default /var/lib/btcd-sync-watchdog)
 #      STALL_MIN (60)  INTERVAL_MIN (30)  MAX_INTERVENTIONS (3)
 #      NOW (epoch seconds; tests only)
-# Flags: --dry-run   detect and log, but never disconnect.
+# Flags: --dry-run   detect and log, but never disconnect. Dry-run ticks share
+#                    the state file, so they use the same rate-limit and
+#                    per-stall slots a live run would; a stall rehearsed in
+#                    dry-run counts as handled until the height moves.
 set -u
 
 dry=0
