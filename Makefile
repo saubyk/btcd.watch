@@ -1,4 +1,4 @@
-.PHONY: build web-build go-build test test-go test-web dev run fmt clean \
+.PHONY: build web-build go-build test test-go test-web test-deploy dev run fmt clean \
 	regtest-up regtest-down regtest-logs
 
 build: web-build go-build
@@ -12,13 +12,16 @@ web-build:
 go-build:
 	go build -o bin/btcdwatchd ./cmd/btcdwatchd
 
-test: test-go test-web
+test: test-go test-web test-deploy
 
 test-go:
 	go test ./... -race
 
 test-web:
 	cd web && npx tsc -b && npx vitest run
+
+test-deploy:
+	deploy/tests/sync-watchdog-test.sh
 
 dev:
 	./scripts/dev.sh

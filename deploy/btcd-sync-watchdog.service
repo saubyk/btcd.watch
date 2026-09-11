@@ -1,0 +1,23 @@
+[Unit]
+Description=btcd sync-peer stall watchdog (one tick; scheduled by the .timer)
+After=btcd.service
+# Not Requires=: if btcd is down the script just reports the RPC failure.
+
+[Service]
+Type=oneshot
+# Must be a user whose btcctl can reach the node's RPC. With the layout in
+# deploy/README.md that is the btcd user plus a btcctl.conf under /etc/btcd;
+# on a host where btcd runs as a login user with ~/.btcctl/btcctl.conf, set
+# User= to that user and drop the Environment= line.
+User=btcd
+Group=btcd
+Environment="BTCCTL=btcctl --configfile=/etc/btcd/btcctl.conf"
+ExecStart=/usr/local/bin/btcd-sync-watchdog.sh
+# /var/lib/btcd-sync-watchdog: state file + interventions.log
+StateDirectory=btcd-sync-watchdog
+SyslogIdentifier=btcd-sync-watchdog
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only

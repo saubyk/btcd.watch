@@ -11,7 +11,7 @@ updated as part of each change.
 
 ```sh
 make build          # npm ci + vite build → embed web/dist → bin/btcdwatchd
-make test           # go test ./... -race  AND  tsc -b + vitest in web/
+make test           # go test ./... -race  AND  tsc -b + vitest in web/  AND  deploy/tests/*.sh
 make fmt            # gofmt -w ./cmd ./internal
 make regtest-up     # Docker btcd + bitcoind miner/txgen (harness/README.md)
 make regtest-down   # tear down and delete all harness state
