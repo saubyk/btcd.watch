@@ -8,7 +8,9 @@ Type=oneshot
 # Must be a user whose btcctl can reach the node's RPC. With the layout in
 # deploy/README.md that is the btcd user plus a btcctl.conf under /etc/btcd;
 # on a host where btcd runs as a login user with ~/.btcctl/btcctl.conf, set
-# User= to that user and drop the Environment= line.
+# User= to that user and make BTCCTL just the binary. Units do not read shell
+# profiles: if btcctl is not on the system PATH (e.g. it lives in ~/go/bin),
+# BTCCTL must be an absolute path.
 User=btcd
 Group=btcd
 Environment="BTCCTL=btcctl --configfile=/etc/btcd/btcctl.conf"
