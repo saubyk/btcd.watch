@@ -133,12 +133,48 @@ mempool queue moves and Watch mode connects (WS through Cloudflare).
   and opens an issue labeled `uptime` when the answer is not HTTP 200 with
   `status: "ok"` — so a 503 (node connection down) *and* a 200 `syncing`
   (tip more than 4h old: on mainnet that means btcd stalled, typically a
-  lost sync peer — see the issue body for the recovery command) both
+  lost sync peer — see the issue body for the recovery command, or let the
+  watchdog below handle it) both
   alert. The issue closes itself on recovery; at most one is open at a
   time. GitHub cron can lag and is auto-disabled after 60 days without
   commits, so `workflow_dispatch` it from the Actions tab if it goes quiet.
   Watch disk on `/var/lib/btcd` (chain + indexes grow steadily) and set an
   alert at 85%.
+- **Sync-peer stall watchdog**: btcd 0.26 can silently stop following the
+  chain after losing its sync peer near the tip — connected to every peer,
+  logging nothing, ignoring their block announcements — until a *new*
+  outbound peer happens to connect (btcsuite/btcd#2606; twice in three days
+  on this host, 7–8 h each). `deploy/btcd-sync-watchdog.sh` runs every
+  10 minutes from a systemd timer and, when `getblockcount` has been frozen
+  for 60 minutes with no `syncnode` peer, disconnects one outbound peer so
+  btcd opens a replacement and re-elects. One intervention per 30 minutes,
+  three per stall, then it stops and the healthz alert takes over. Install:
+
+  ```sh
+  sudo install -m 755 deploy/btcd-sync-watchdog.sh /usr/local/bin/
+  sudo cp deploy/btcd-sync-watchdog.service deploy/btcd-sync-watchdog.timer /etc/systemd/system/
+  # btcctl credentials for the unit's user (rpcuser/rpcpass from btcd.conf):
+  printf 'rpcuser=btcdwatch\nrpcpass=<from /etc/btcd/btcd.conf>\nrpccert=/var/lib/btcd/rpc.cert\n' \
+      | sudo tee /etc/btcd/btcctl.conf >/dev/null
+  sudo chown root:btcd /etc/btcd/btcctl.conf && sudo chmod 640 /etc/btcd/btcctl.conf
+  sudo systemctl daemon-reload && sudo systemctl enable --now btcd-sync-watchdog.timer
+  ```
+
+  Re-run the `install` line after upgrading a release that changes the
+  script. If btcd runs as a different user (or its RPC listens without TLS),
+  edit `User=` / `Environment=BTCCTL=` in the service before enabling. Try
+  it by hand first: `sudo -u btcd BTCCTL='btcctl --configfile=/etc/btcd/btcctl.conf' /usr/local/bin/btcd-sync-watchdog.sh --dry-run`
+  (a healthy node prints nothing). Every intervention is one line in
+  `/var/lib/btcd-sync-watchdog/interventions.log` and in
+  `journalctl -t btcd-sync-watchdog`, with the outcome (`recovered` /
+  `no-effect`) filled in on the following tick:
+
+  ```
+  grep -c ' intervention ' /var/lib/btcd-sync-watchdog/interventions.log   # how often it had to step in
+  ```
+
+  A steady trickle of `recovered` lines is the btcd bug; `no-effect` lines
+  or a climbing count point at the host instead.
 - **Logs**: `journalctl -fu btcdwatchd`, `journalctl -fu btcd`.
 - **btcd upgrades**: stop `btcdwatchd` first, upgrade/restart `btcd`, wait
   for `healthz` to report reconnect. Never `kill -9` btcd — index recovery

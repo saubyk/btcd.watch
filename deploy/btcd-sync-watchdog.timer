@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the btcd sync-peer stall watchdog every 10 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
