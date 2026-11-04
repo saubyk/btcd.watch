@@ -741,7 +741,19 @@ vite dev server  → 127.0.0.1:5174   (SPA with HMR)
 4. `--static-dir <path>` flag overrides the embedded assets with an on-disk directory.
 
 The frontend keeps the design's **state-driven view model** (one `view` state, no router
-library); the active query is mirrored to `?q=` via `history.replaceState` for shareable links.
+library). Each result the user navigates to is a browser-history entry at `?q=<query>` (the
+landing page is the entry without `q`), managed by `web/src/lib/nav.ts`:
+
+- Searches, drill-ins (address/tx/block links all funnel through `useSearch`), block prev/next
+  and "New search" `pushState` a new entry; re-running the query already shown pushes nothing.
+- A `popstate` listener re-runs the entry's query without pushing and without the 400 ms
+  minimum skeleton, then restores the scroll offset saved when the user left it
+  (`history.scrollRestoration = 'manual'`, since results render after the browser would
+  restore). Results are re-fetched, never cached in history state, so they are never stale.
+- Each entry's state records what it showed (`kind`) and what the in-app entry before it
+  showed (`prev`). The in-page back button reads `prev` to offer "← Back to transaction /
+  address / block" (which calls `history.back()`) next to "New search". A cold-loaded deep
+  link has `prev: null`, so it offers only "New search" and the browser's Back leaves the site.
 
 ---
 

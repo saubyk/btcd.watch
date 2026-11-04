@@ -1,15 +1,36 @@
-import type { ReactNode } from 'react'
+import { useSyncExternalStore, type ReactNode } from 'react'
 
 import type { Tx } from '../api/types'
 import { formatBtc, formatFiat, truncateMiddle } from '../lib/format'
+import { backLabel, currentEntry, subscribeEntry } from '../lib/nav'
 import { AddressLink } from './AddressLink'
 import { TypeChips } from './TypeChips'
 
+/**
+ * "← Back to <previous result>" when the user drilled in from another
+ * result (same as the browser's Back), plus "New search" to the landing
+ * page. A cold-loaded deep link has nothing in-app behind it, so only
+ * "New search" shows.
+ */
 export function BackButton({ onClick }: { onClick: () => void }) {
+  const entry = useSyncExternalStore(subscribeEntry, currentEntry)
+  const back = backLabel(entry)
+  if (!back) {
+    return (
+      <button className="bp-back-btn" onClick={onClick}>
+        ← New search
+      </button>
+    )
+  }
   return (
-    <button className="bp-back-btn" onClick={onClick}>
-      ← New search
-    </button>
+    <div className="bp-back-row">
+      <button className="bp-back-btn" onClick={() => history.back()}>
+        ← {back}
+      </button>
+      <button className="bp-back-btn bp-back-btn--secondary" onClick={onClick}>
+        New search
+      </button>
+    </div>
   )
 }
 
