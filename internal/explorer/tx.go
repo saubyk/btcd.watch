@@ -26,6 +26,21 @@ var ErrTxNotFound = errors.New("transaction not found")
 // address.
 const nonStandardLabel = "(non-standard output)"
 
+// Spend states of an output row (TxIO.Spend).
+const (
+	spendUnspent     = "unspent"
+	spendSpent       = "spent"
+	spendUnspendable = "unspendable" // OP_RETURN: never enters the UTXO set
+)
+
+// maxSpendChecks bounds the gettxout lookups one transaction view issues;
+// rows past it carry no spend state. spendCheckWorkers bounds how many of
+// those lookups are in flight at once.
+const (
+	maxSpendChecks    = 200
+	spendCheckWorkers = 8
+)
+
 // vbytesPerBlock approximates the block space ahead of a pending tx that
 // one block clears (1 MvB of standard weight).
 const vbytesPerBlock = 1_000_000
@@ -52,11 +67,14 @@ type TxPending struct {
 // TxIO is one input or output row of the detail card. Address is the
 // first (usually only) address, or the non-standard label; Change is
 // meaningful on outputs only — the heuristic attributed it back to the
-// sender.
+// sender. Spend is set on outputs of the transaction view only:
+// "unspent", "spent" (by a confirmed transaction), or "unspendable"
+// (OP_RETURN); empty when unknown.
 type TxIO struct {
 	Address    string `json:"address"`
 	AmountSats int64  `json:"amountSats"`
 	Change     bool   `json:"change"`
+	Spend      string `json:"spend,omitempty"`
 }
 
 // TxType classifies a transaction's script types. In is empty for
@@ -216,8 +234,16 @@ func (s *Service) OnBlock() {
 	s.intervalMu.Unlock()
 }
 
-// GetTx looks up a transaction and derives the full API payload.
+// GetTx looks up a transaction and derives the full API payload,
+// including each output's spend state.
 func (s *Service) GetTx(txid string) (*Tx, error) {
+	return s.getTx(txid, true)
+}
+
+// getTx derives the payload; withSpends adds the per-output gettxout
+// lookups, which only the transaction view needs (block pages reuse
+// getTx per row and skip them).
+func (s *Service) getTx(txid string, withSpends bool) (*Tx, error) {
 	hash, err := chainhash.NewHashFromStr(txid)
 	if err != nil {
 		return nil, ErrTxNotFound
@@ -292,6 +318,9 @@ func (s *Service) GetTx(txid string) (*Tx, error) {
 			Time:   header.Time,
 		}
 		tx.FirstSeen = header.Time
+		if withSpends {
+			s.deriveSpends(hash, raw.Vout, tx.Outputs)
+		}
 		return tx, nil
 	}
 
@@ -388,6 +417,44 @@ func (s *Service) deriveOutputs(tx *Tx, vouts []btcjson.Vout,
 		}
 	}
 	return outCodes
+}
+
+// deriveSpends labels each output row with its spend state from the
+// UTXO set: present → unspent, absent → spent. Only confirmed
+// transactions are checked — btcd answers gettxout for a mempool tx's
+// outputs from the mempool without considering in-mempool spends, and
+// likewise reports a confirmed output spent only by a pending tx as
+// unspent until that spend confirms. A failed lookup leaves the row
+// unlabeled rather than failing the view: spend state is supplementary.
+//
+// rows[i] corresponds to vouts[i]; each worker writes only its own row.
+func (s *Service) deriveSpends(hash *chainhash.Hash, vouts []btcjson.Vout,
+	rows []TxIO) {
+
+	sem := make(chan struct{}, spendCheckWorkers)
+	var wg sync.WaitGroup
+	for i, v := range vouts[:min(len(vouts), maxSpendChecks)] {
+		if v.ScriptPubKey.Type == "nulldata" {
+			rows[i].Spend = spendUnspendable
+			continue
+		}
+		wg.Add(1)
+		go func(row *TxIO, n uint32) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			out, err := s.backend.GetTxOut(hash, n, false)
+			switch {
+			case err != nil:
+			case out == nil:
+				row.Spend = spendSpent
+			default:
+				row.Spend = spendUnspent
+			}
+		}(&rows[i], v.N)
+	}
+	wg.Wait()
 }
 
 // resolvePrevouts returns value and addresses for each input, fetching

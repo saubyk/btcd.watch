@@ -1892,6 +1892,25 @@ button.bp-tile-item--link:hover {
   color: #7c6e5c;
   background: #f4ece0;
 }
+/* Spend chips are outlined so they read apart from the filled role chip. */
+.bp-io-spend {
+  display: inline-block;
+  margin: 4px 0 0 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--bp-divider-3);
+  color: var(--bp-text-muted);
+}
+.bp-io-spend--unspent {
+  color: var(--bp-green-deep);
+  border-color: var(--bp-green-border);
+}
+.bp-io-spend--spent {
+  color: var(--bp-amber-deep);
+  border-color: var(--bp-amber-border);
+}
 .bp-io-amount {
   font-family: var(--bp-mono);
   font-size: 13px;

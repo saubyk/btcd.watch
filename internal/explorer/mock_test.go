@@ -1,6 +1,7 @@
 package explorer
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
@@ -19,6 +20,14 @@ type mockBackend struct {
 	mempool map[string]btcjson.GetRawMempoolVerboseResult
 	// history is per-address, newest first (as reverse=true returns).
 	history map[string][]*btcjson.SearchRawTransactionsResult
+
+	// utxos holds the unspent outpoints ("txid:n"); any other outpoint
+	// reads as spent. GetTxOut runs from concurrent workers, so its
+	// counter and error are guarded.
+	utxos      map[string]bool
+	txOutMu    sync.Mutex
+	txOutCalls int
+	txOutErr   error
 
 	txFetches      map[string]int
 	mempoolFetches int
@@ -58,6 +67,7 @@ func newMockBackend() *mockBackend {
 		blocks:    make(map[string]*btcjson.GetBlockVerboseResult),
 		mempool:   make(map[string]btcjson.GetRawMempoolVerboseResult),
 		history:   make(map[string][]*btcjson.SearchRawTransactionsResult),
+		utxos:     make(map[string]bool),
 		txFetches: make(map[string]int),
 
 		blockFetches: make(map[string]int),
@@ -131,6 +141,28 @@ func (m *mockBackend) GetBlockVerbose(blockHash *chainhash.Hash) (*btcjson.GetBl
 func (m *mockBackend) GetRawMempoolVerbose() (map[string]btcjson.GetRawMempoolVerboseResult, error) {
 	m.mempoolFetches++
 	return m.mempool, nil
+}
+
+func (m *mockBackend) GetTxOut(txHash *chainhash.Hash, index uint32,
+	_ bool) (*btcjson.GetTxOutResult, error) {
+
+	m.txOutMu.Lock()
+	m.txOutCalls++
+	err := m.txOutErr
+	m.txOutMu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	if !m.utxos[fmt.Sprintf("%s:%d", txHash, index)] {
+		return nil, nil
+	}
+	return &btcjson.GetTxOutResult{}, nil
+}
+
+func (m *mockBackend) getTxOutCalls() int {
+	m.txOutMu.Lock()
+	defer m.txOutMu.Unlock()
+	return m.txOutCalls
 }
 
 func (m *mockBackend) SearchRawTransactionsVerbose(addr address.Address, skip,

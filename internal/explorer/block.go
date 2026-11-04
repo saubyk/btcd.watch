@@ -115,7 +115,7 @@ func (s *Service) block(hash *chainhash.Hash, offset, limit int) (*Block, error)
 	var coinbase *Tx
 	block.Txs = make([]BlockTx, 0, max(end-offset, 0))
 	for i := offset; i < end; i++ {
-		tx, err := s.GetTx(raw.Tx[i])
+		tx, err := s.getTx(raw.Tx[i], false)
 		if err != nil {
 			return nil, fmt.Errorf("block tx %s: %w", raw.Tx[i], err)
 		}
@@ -150,7 +150,7 @@ func (s *Service) deriveAvgFee(block *Block,
 
 	if coinbase == nil {
 		var err error
-		if coinbase, err = s.GetTx(raw.Tx[0]); err != nil {
+		if coinbase, err = s.getTx(raw.Tx[0], false); err != nil {
 			return fmt.Errorf("coinbase tx %s: %w", raw.Tx[0], err)
 		}
 	}

@@ -23,11 +23,22 @@ export interface TxType {
   out: string
 }
 
-/** One input/output row of the detail card; change is outputs-only. */
+/**
+ * Whether an output has been spent: 'spent' means by a confirmed
+ * transaction; 'unspendable' is an OP_RETURN data output.
+ */
+export type SpendState = 'unspent' | 'spent' | 'unspendable'
+
+/**
+ * One input/output row of the detail card; change and spend are
+ * outputs-only. spend is absent when unknown (pending tx, lookup failed,
+ * or past the server's per-tx check cap).
+ */
 export interface TxIO {
   address: string
   amountSats: number
   change: boolean
+  spend?: SpendState
 }
 
 export interface Tx {

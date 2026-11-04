@@ -33,6 +33,9 @@ type Backend interface {
 	GetBlockCount() (int64, error)
 	GetBlockVerbose(blockHash *chainhash.Hash) (*btcjson.GetBlockVerboseResult, error)
 	GetRawMempoolVerbose() (map[string]btcjson.GetRawMempoolVerboseResult, error)
+	// GetTxOut returns nil (no error) when the output is not in the UTXO
+	// set — spent, or never spendable (OP_RETURN).
+	GetTxOut(txHash *chainhash.Hash, index uint32, mempool bool) (*btcjson.GetTxOutResult, error)
 	SearchRawTransactionsVerbose(addr address.Address, skip, count int,
 		includePrevOut, reverse bool,
 		filterAddrs []string) ([]*btcjson.SearchRawTransactionsResult, error)
@@ -260,6 +263,15 @@ func (c *Client) GetRawMempoolVerbose() (map[string]btcjson.GetRawMempoolVerbose
 		return nil, err
 	}
 	return c.rpc.GetRawMempoolVerbose()
+}
+
+func (c *Client) GetTxOut(txHash *chainhash.Hash, index uint32,
+	mempool bool) (*btcjson.GetTxOutResult, error) {
+
+	if err := c.available(); err != nil {
+		return nil, err
+	}
+	return c.rpc.GetTxOut(txHash, index, mempool)
 }
 
 func (c *Client) SearchRawTransactionsVerbose(addr address.Address, skip,
