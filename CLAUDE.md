@@ -87,7 +87,8 @@ paths return JSON 404 rather than the SPA. `--static-dir` overrides the embedded
 
 **Frontend.** No router: `web/src/state.ts` is a `useReducer` state machine (`view` +
 payload), `useSearch` classifies via `/api/search` and dispatches `search-result`, and
-`?q=` is maintained with `history.replaceState`. `web/src/appConfig.ts` holds build-time
+each navigation pushes a history entry at `?q=` (`web/src/lib/nav.ts`; Back/Forward re-run the
+search via `popstate`). `web/src/appConfig.ts` holds build-time
 design switches (motion level, live-mempool toggle, poll intervals). Styling is plain CSS
 with `bp-`-prefixed classes and tokens in `web/src/styles/`; there is no CSS framework.
 

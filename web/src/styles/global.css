@@ -1070,6 +1070,20 @@ input::placeholder {
   margin: 0 auto;
   padding: 28px 22px 64px;
 }
+.bp-back-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 18px;
+  margin-bottom: 18px;
+}
+.bp-back-row .bp-back-btn {
+  margin-bottom: 0;
+}
+.bp-back-btn--secondary {
+  font-weight: 500;
+  color: var(--bp-text-muted);
+}
 .bp-back-btn {
   display: inline-flex;
   align-items: center;

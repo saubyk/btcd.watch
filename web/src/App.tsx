@@ -7,6 +7,7 @@ import { Header } from './components/Header'
 import { ToastProvider } from './components/Toast'
 import { useNetworkData } from './hooks/useNetworkData'
 import { useSearch } from './hooks/useSearch'
+import { initHistory, markKind, pushQuery, syncFromLocation } from './lib/nav'
 import { initialState, reducer } from './state'
 import { AddressView } from './views/AddressView'
 import { BlockView } from './views/BlockView'
@@ -24,14 +25,31 @@ export function App() {
 
   const goHome = useCallback(() => {
     dispatch({ type: 'reset' })
-    history.replaceState(null, '', location.pathname)
+    pushQuery(null)
+    markKind('home')
     window.scrollTo({ top: 0 })
   }, [])
 
-  // Deep links: /?q=<txid|address|height> searches on cold load.
+  // Deep links: /?q=<txid|address|height> searches on cold load, on the
+  // entry the page was loaded on (no push). Back/Forward re-show the
+  // entry the browser moved to, again without pushing.
   useEffect(() => {
-    const q = new URLSearchParams(location.search).get('q')
-    if (q) void search(q)
+    const entry = initHistory()
+    if (entry.q) void search(entry.q, { restore: entry })
+    else markKind('home')
+
+    const onPop = () => {
+      const e = syncFromLocation()
+      if (e.q) {
+        void search(e.q, { restore: e })
+      } else {
+        dispatch({ type: 'reset' })
+        markKind('home')
+        requestAnimationFrame(() => window.scrollTo({ top: e.scrollY }))
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
     // search is stable (useCallback over dispatch).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

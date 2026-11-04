@@ -17,6 +17,7 @@ import {
   formatTimestamp,
   truncateMiddle,
 } from '../lib/format'
+import { markKind, pushQuery } from '../lib/nav'
 import type { Action } from '../state'
 
 /** "· the newest block" → "settling in" → "permanent". Round 8 dropped
@@ -65,7 +66,8 @@ export function BlockView({
       const next = await api.block(height)
       if (navSeq.current !== mySeq) return
       dispatch({ type: 'search-result', result: { kind: 'block', block: next } })
-      history.replaceState(null, '', `?q=${height}`)
+      pushQuery(String(height))
+      markKind('block')
     } catch {
       if (navSeq.current === mySeq) onSearch(String(height))
       return
