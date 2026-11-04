@@ -2,7 +2,7 @@
 
 Runbook for the public single-box deployment: **btcd (mainnet) + btcdwatchd +
 Caddy** on one server, Cloudflare in front. Everything here is manual and
-tag-based by design — no CI/CD, no deploy credentials anywhere.
+tag-based by design — no CD, no deploy credentials anywhere (CI only runs tests on PRs).
 
 ```
  browser ──▶ Cloudflare (DNS, DDoS, edge cache, WAF)
