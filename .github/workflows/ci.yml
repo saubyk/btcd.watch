@@ -1,0 +1,77 @@
+name: ci
+
+# Basic checks on every pull request: the same suites `make test` runs,
+# plus gofmt/vet and a production web build. No node is needed — Go tests
+# use the mock node.Backend, and the deploy tests stub btcctl.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# A new push to a PR supersedes its in-flight run.
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l ./cmd ./internal)"
+          if [ -n "$unformatted" ]; then
+            echo "Not gofmt'd (run 'make fmt'):"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      # -race matters: several regression tests only catch notification-
+      # goroutine deadlocks under the race detector's scheduling.
+      - name: go test
+        run: make test-go
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # npm ci, never npm install: it must not rewrite package-lock.json.
+      - name: npm ci
+        working-directory: web
+        run: npm ci --no-audit --no-fund
+
+      - name: typecheck + vitest
+        run: make test-web
+
+      - name: vite build
+        working-directory: web
+        run: npm run build
+
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deploy script tests
+        run: make test-deploy

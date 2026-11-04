@@ -130,7 +130,8 @@ carries both `Addresses []string` (deprecated) and `Address string` — handle b
 
 ## Workflow
 
-Feature branch off `master` → PR → the maintainer merges (no CI/CD). Run `make test` and
+Feature branch off `master` → PR → the maintainer merges. `.github/workflows/ci.yml` runs on
+every PR (gofmt, vet, the `make test` suites, a vite build); there is no CD. Still run `make test` and
 `make fmt` before opening one, and update `docs/ARCHITECTURE.md` when behavior changes.
 Production deploys are manual and tag-based: tag a release, then run
 `deploy/upgrade.sh <tag>` on the VPS (builds from the tag, keeps the previous binary,
