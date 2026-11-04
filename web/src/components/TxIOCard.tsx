@@ -1,11 +1,11 @@
-import type { Tx, TxIO } from '../api/types'
+import type { SpendState, Tx, TxIO } from '../api/types'
 import { formatBtc, formatNumber } from '../lib/format'
 import { AddressLink } from './AddressLink'
 
 /**
  * The Detailed tab's inputs/outputs breakdown: full tappable addresses,
- * per-row amounts, recipient/change role chips, and the plain-English
- * fee footer.
+ * per-row amounts, recipient/change role chips, spent/unspent chips on
+ * outputs, and the plain-English fee footer.
  */
 export function TxIOCard({
   tx,
@@ -73,8 +73,34 @@ function IORow({
             {io.change ? 'change — back to sender' : 'recipient'}
           </span>
         )}
+        {io.spend && <SpendChip spend={io.spend} />}
       </div>
       <span className="bp-io-amount">{formatBtc(io.amountSats)} BTC</span>
     </div>
+  )
+}
+
+const SPEND_COPY: Record<SpendState, { label: string; title: string }> = {
+  unspent: {
+    label: 'unspent',
+    title: 'Still sitting at this address — not sent on yet.',
+  },
+  spent: {
+    label: 'spent',
+    title:
+      'Already sent on in a later transaction — tap the address to follow it.',
+  },
+  unspendable: {
+    label: 'data only — can’t be spent',
+    title: 'An OP_RETURN output carries data, not money, and can never be spent.',
+  },
+}
+
+function SpendChip({ spend }: { spend: SpendState }) {
+  const copy = SPEND_COPY[spend]
+  return (
+    <span className={`bp-io-spend bp-io-spend--${spend}`} title={copy.title}>
+      {copy.label}
+    </span>
   )
 }

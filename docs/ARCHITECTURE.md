@@ -133,6 +133,7 @@ type Backend interface {
     GetBlockVerbose(hash *chainhash.Hash) (*btcjson.GetBlockVerboseResult, error)
     GetRawMempoolVerbose() (map[string]btcjson.GetRawMempoolVerboseResult, error)
     GetMempoolInfo() (*btcjson.GetMempoolInfoResult, error)
+    GetTxOut(txid *chainhash.Hash, index uint32, mempool bool) (*btcjson.GetTxOutResult, error)
     SearchRawTransactionsVerbose(addr btcutil.Address, skip, count int,
         includePrevOut, reverse bool, filterAddrs []string) ([]*btcjson.SearchRawTransactionsResult, error)
 }
@@ -194,8 +195,9 @@ Response envelope:
   "to":   ["bcrt1q..."],
   "isCoinbase": false,
   "inputs":  [ { "address": "bcrt1q...", "amountSats": 6000000, "change": false } ],
-  "outputs": [ { "address": "bcrt1q...", "amountSats": 4250000, "change": false },
-               { "address": "bcrt1q...", "amountSats": 1748740, "change": true  } ],
+  "outputs": [ { "address": "bcrt1q...", "amountSats": 4250000, "change": false, "spend": "spent" },
+               { "address": "bcrt1q...", "amountSats": 1748740, "change": true,  "spend": "unspent" } ],
+               // spend: "unspent" | "spent" | "unspendable" (OP_RETURN); omitted when unknown (§6)
   "confirmations": 3,
   "block": { "height": 512, "hash": "hex", "time": 1735000000 },   // null while pending
   "feeSats": 141,                        // null for coinbase ("newly minted")
@@ -598,6 +600,16 @@ plus amount — for the Detailed tab's breakdown card. `change` on an output com
 heuristic the amount derivation uses, so the role chips always agree with the headline amount.
 Coinbases have no input rows.
 
+`spend` on an output (transaction view only — block pages reuse the derivation without it)
+comes from one `gettxout` per output (`include_mempool=false`) against the UTXO set: a result
+→ `unspent`, JSON null → `spent`. `nulldata` (OP_RETURN) outputs never enter the UTXO set, so
+they are labeled `unspendable` without a lookup. Lookups run with at most 8 in flight and cover
+the first 200 outputs; rows past that, and rows whose lookup failed, omit `spend` rather than
+failing the view. Pending transactions are not checked: btcd answers `gettxout` for a mempool
+tx from the mempool without considering in-mempool spends, so every output would read
+unspent. For the same reason a confirmed output whose spender is still pending reads
+`unspent` until that spend confirms — `spent` means spent on-chain.
+
 ### From / to heuristics (beginner view)
 
 - **From** = deduplicated addresses across all vin prevouts. btcd's script decoding returns an
@@ -756,6 +768,7 @@ following were verified against btcd 0.26.0-beta with `txindex=1` and `addrindex
 | `getrawmempool verbose=true` | per-entry `fee`, `vsize`, `time` — feeds snapshot |
 | `getmempoolinfo` | tx count + bytes for stats bar |
 | `getblockheader` / `getblockhash` / `getblockcount` / `getblock` | heights, times, block view |
+| `gettxout` | per-output spent/unspent state on the tx view; returns JSON null for an outpoint not in the UTXO set (spent or OP_RETURN); mempool spends are invisible to it |
 | `validateaddress` | available, but address validation is done in-process via `btcutil.DecodeAddress` (no RPC round-trip) |
 | websocket notifications | `notifyblocks`, `notifynewtransactions` — must be explicitly registered; re-register after every reconnect |
 | `estimatefee` (legacy) | **present but deliberately unused** — unreliable, especially on regtest |
